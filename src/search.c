@@ -192,6 +192,15 @@ int kissat_search (kissat *solver) {
   if (!res && searching (solver)) {
     start_search (solver);
     while (!res) {
+      clock_gettime (CLOCK_MONOTONIC, &solver->end);
+      long time_ns =
+          (solver->end.tv_sec - solver->start.tv_sec) * 1000000000L +
+          (solver->end.tv_nsec - solver->start.tv_nsec);
+      double time_ms = time_ns / 1000000.0;
+      if (time_ms > 60000) {
+        res = 20;
+        solver->timeout = true;
+      }
       clause *conflict = kissat_search_propagate (solver);
       if (conflict)
         res = kissat_analyze (solver, conflict);

@@ -1,10 +1,15 @@
 #include "decide.h"
+#include "heap.h"
 #include "inlineframes.h"
 #include "inlineheap.h"
 #include "inlinequeue.h"
 #include "print.h"
 
+#include <float.h> // 用于 DBL_MIN 常量
 #include <inttypes.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 static unsigned last_enqueued_unassigned_variable (kissat *solver) {
   assert (solver->unassigned);
@@ -135,18 +140,21 @@ unsigned kissat_next_decision_variable (kissat *solver) {
 #endif
       res = largest_score_unassigned_variable (solver);
       INC (score_decisions);
+      // printf ("largest_score_unassigned_variable: %u\n", res);
     } else {
 #ifdef LOGGING
       type = "dequeued";
 #endif
       res = last_enqueued_unassigned_variable (solver);
       INC (queue_decisions);
+      // printf ("last_enqueued_unassigned_variable: %u\n", res);
     }
   } else {
 #ifdef LOGGING
     type = "random";
 #endif
     INC (random_decisions);
+    // printf ("random_decision: %u\n", res);
   }
   LOG ("next %s decision %s", type, LOGVAR (res));
   return res;
@@ -206,69 +214,171 @@ int kissat_decide_phase (kissat *solver, unsigned idx) {
   return res < 0 ? -1 : 1;
 }
 
-void kissat_write_cnf(kissat *solver, const char *filename) {
-  FILE *file = fopen(filename, "w");
+void kissat_write_cnf (kissat *solver, const char *filename) {
+  FILE *file = fopen (filename, "w");
   unsigned clause_count = 0;
-  for (all_clauses(C)) {
+  for (all_clauses (C)) {
     if (!C->garbage && !C->shrunken) {
       clause_count++;
     }
   }
-  fprintf(file, "p cnf %u %u\n", solver->vars, clause_count);
-  for (all_clauses(C)) {
+  fprintf (file, "p cnf %u %u\n", solver->vars, clause_count);
+  for (all_clauses (C)) {
     if (C->garbage || C->shrunken)
       continue;
     for (unsigned i = 0; i < C->size; i++) {
       unsigned lit_index = C->lits[i];
       int var_index = lit_index / 2;
       int sign = (lit_index % 2 == 0) ? 1 : -1;
-      fprintf(file, "%d ", sign * (var_index + 1));
+      fprintf (file, "%d ", sign * (var_index + 1));
     }
-    fprintf(file, "0\n");
+    fprintf (file, "0\n");
   }
-  fclose(file);
+  fclose (file);
 }
 
-void kissat_decide(kissat *solver) {
-  START(decide);
-  assert(solver->unassigned);
+void kissat_write_scores (kissat *solver, const char *filename) {
+  FILE *file = fopen (filename, "w");
+  heap *score_output = &solver->scores;
+  unsigned idx = 0;
+  for (idx = 0; idx < score_output->vars; idx++) {
+    //! 这里先借助position找到变量在堆中的位置
+    //! 再通过位置找到变量的得分
+    //! 这样做是因为堆中的变量是动态变化的，直接遍历score数组会有问题
+    // unsigned _pos = score_output->pos[idx];
+    fprintf (file, "%f,%u\n", score_output->score[idx],
+             score_output->pos[idx]);
+    // fprintf (file, "%u\n", score_output->pos[idx]);
+    // fprintf (file, "%u\n", score_output->stack.begin[idx]);
+  }
+  fclose (file);
+}
+
+// unsigned kissat_pick_benchmark (char *filename) {
+//   FILE *file = fopen (filename, "r");
+//   char line[1024]; // 缓冲区存储读取的行
+//   if (fgets (line, sizeof (line), file) == NULL) {
+//     fclose (file);
+//     printf ("Error: File is empty\n");
+//     return 0; // 返回 0 表示错误（文件为空）
+//   }
+//   fclose (file); // 读取后立即关闭文件
+//   // 创建行的副本，因为 strtok 会修改原始字符串
+//   char line_copy[1024];
+//   strncpy (line_copy, line, sizeof (line_copy));
+//   line_copy[sizeof (line_copy) - 1] = '\0'; // 确保字符串终止
+//   // 第一遍：计算 token 数量（数组元素个数）
+//   int count = 0;
+//   char *token = strtok (line_copy, ",");
+//   while (token != NULL) {
+//     count++;
+//     token = strtok (NULL, ",");
+//   }
+//   if (count == 0) {
+//     printf ("Error: No data found in CSV\n");
+//     return 0; // 返回 0 表示错误（无数据）
+//   }
+//   // 第二遍：解析数值并存储到数组
+//   double *values = (double *) malloc (count * sizeof (double));
+//   if (values == NULL) {
+//     perror ("Error: Memory allocation failed");
+//     return 0; // 返回 0 表示错误（内存分配失败）
+//   }
+//   // 创建另一个副本用于解析数值
+//   strncpy (line_copy, line, sizeof (line_copy));
+//   line_copy[sizeof (line_copy) - 1] = '\0';
+//   int index = 0;
+//   token = strtok (line_copy, ",");
+//   while (token != NULL && index < count) {
+//     values[index] = atof (token); // 将字符串转换为 double
+//     index++;
+//     token = strtok (NULL, ",");
+//   }
+//   // 查找最大值元素的索引
+//   double max_val = -DBL_MAX; // 初始化为最小可能的 double 值
+//   unsigned max_index = 0;
+//   for (int i = 0; i < count; i++) {
+//     if (values[i] > max_val) {
+//       max_val = values[i];
+//       max_index = i;
+//     }
+//   }
+//   free (values);    // 释放动态分配的内存
+//   return max_index; // 返回最大值元素的索引（从 0 开始）
+// }
+
+void kissat_decide (kissat *solver) {
+  struct timespec _start, _end;
+  clock_gettime (CLOCK_MONOTONIC, &_start);
+  START (decide);
+  assert (solver->unassigned);
   if (solver->warming)
-    INC(warming_decisions);
+    INC (warming_decisions);
   else {
-    INC(decisions);
+    INC (decisions);
     if (solver->stable)
-      INC(stable_decisions);
+      INC (stable_decisions);
     else
-      INC(focused_decisions);
+      INC (focused_decisions);
   }
   solver->level++;
-  assert(solver->level != INVALID_LEVEL);
+  assert (solver->level != INVALID_LEVEL);
+
+  // //! train版本
+  // //! 记录decidede variable
+  // solver->decided++;
   // //! 输出当前clauses
-  // char filename[256];
-  // snprintf(filename, sizeof(filename),
-  //          "/root/project/neurosat/dimacs/train/kissat/decision_clauses_%d.cnf",
-  //          solver->decided);
-  // kissat_write_cnf(solver, filename);
-  //! 这里嵌入神经网络决策，代替kissat_next_decision_variable
-  const unsigned idx = kissat_next_decision_variable(solver);
-  //! 记录decidede variable
-  solver->decided++;
-  PUSH_STACK(solver->branched, idx);
-  //! 输出当前clauses
-  char filename[256];
-  snprintf(filename, sizeof(filename),
-           "/root/project/neurosat/dimacs/train/kissat/decision_clauses_%d.cnf",
-           solver->decided);
-  kissat_write_cnf(solver, filename);
-  const value value = kissat_decide_phase(solver, idx);
-  unsigned lit = LIT(idx);
+  // char filename[128];
+  // snprintf (filename, sizeof (filename),
+  //           "/home/richard/project/neurobranch/dimacs/train/clauses/"
+  //           "decision%d.cnf",
+  //           solver->decided);
+  // kissat_write_cnf (solver, filename);
+
+  // //! 输出当前变量的EVSIDS得分
+  // char filename2[128];
+  // snprintf (filename2, sizeof (filename2),
+  //           "/home/richard/project/neurobranch/dimacs/train/scores/"
+  //           "decision%d.csv",
+  //           solver->decided);
+  // kissat_write_scores (solver, filename2);
+
+  // //! apply版本
+  // char filename[128] =
+  //     "/home/richard/project/neurobranch/data/kissat/clause/1.cnf";
+  // kissat_write_cnf (solver, filename);
+  // char filename2[128] =
+  //     "/home/richard/project/neurobranch/data/kissat/score/1.csv";
+  // kissat_write_scores (solver, filename2);
+
+  // //! 这里嵌入神经网络决策
+  // //! 每5个decision代替kissat_next_decision_variable
+  // unsigned _idx = 0;
+  // if (solver->decided % 20 == 0) {
+  //   int status =
+  //       system ("/home/richard/project/neurobranch/scripts/apply.sh");
+  //   char file_name[128] =
+  //       "/home/richard/project/neurobranch/results/output.csv";
+  //   _idx = kissat_pick_benchmark (file_name);
+  // } else {
+  //   _idx = kissat_next_decision_variable (solver);
+  // }
+  // const unsigned idx = _idx;
+
+  const unsigned idx = kissat_next_decision_variable (solver);
+  const value value = kissat_decide_phase (solver, idx);
+  unsigned lit = LIT (idx);
   if (value < 0)
-    lit = NOT(lit);
-  kissat_push_frame(solver, lit);
-  assert(solver->level < SIZE_STACK(solver->frames));
-  LOG("decide literal %s", LOGLIT(lit));
-  kissat_assign_decision(solver, lit);
-  STOP(decide);
+    lit = NOT (lit);
+  kissat_push_frame (solver, lit);
+  assert (solver->level < SIZE_STACK (solver->frames));
+  LOG ("decide literal %s", LOGLIT (lit));
+  kissat_assign_decision (solver, lit);
+  STOP (decide);
+  clock_gettime (CLOCK_MONOTONIC, &_end);
+  long time_ns = (_end.tv_sec - _start.tv_sec) * 1000000000L +
+                 (_end.tv_nsec - _start.tv_nsec);
+  solver->decision_time_ns += time_ns;
 }
 
 void kissat_internal_assume (kissat *solver, unsigned lit) {

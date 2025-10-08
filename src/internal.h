@@ -32,6 +32,7 @@
 #include "value.h"
 #include "vector.h"
 #include "watch.h"
+#include <time.h>
 
 typedef struct datarank datarank;
 
@@ -105,7 +106,11 @@ struct kissat {
   unsigned active;
   unsigned randec;
   int decided;
-  unsigneds branched;
+  //! 设置时间变量用于计时
+  struct timespec start, end;
+  long decision_time_ns;
+  //! 设置超时标记
+  bool timeout;
 
   ints export;
   ints units;
@@ -118,6 +123,7 @@ struct kissat {
 
   mark *marks;
 
+  //! 这里是一个指针数组，表示每个变量的值。
   value *values;
   phases phases;
 
@@ -127,6 +133,7 @@ struct kissat {
   links *links;
   queue queue;
 
+  //! 这里是一个堆，存储变量的得分。
   heap scores;
   double scinc;
 
@@ -257,6 +264,7 @@ struct kissat {
 #define TIER2 (solver->tier2[1])
 #endif
 
+//! 变量的得分
 #define SCORES (&solver->scores)
 
 static inline unsigned kissat_assigned (kissat *solver) {

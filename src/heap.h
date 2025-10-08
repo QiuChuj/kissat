@@ -70,9 +70,9 @@ static inline double kissat_max_score_on_heap (heap *heap) {
   return res;
 }
 
-#ifndef NDEBUG
+// #ifndef NDEBUG
 void kissat_dump_heap (heap *);
-#endif
+// #endif
 
 #ifndef NDEBUG
 void kissat_check_heap (heap *);

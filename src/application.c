@@ -13,10 +13,10 @@
 #include "witness.h"
 
 #include <inttypes.h>
-#include <string.h>
-#include <unistd.h>
-#include <time.h>
 #include <stdio.h>
+#include <string.h>
+#include <time.h>
+#include <unistd.h>
 
 #define SOLVER_NAME "Kissat SAT Solver"
 
@@ -632,6 +632,7 @@ static bool parse_input (application *application) {
   kissat *solver = application->solver;
   uint64_t lineno;
   file file;
+  //! 这里是获取输入文件的路径
   const char *path = application->input_path;
   if (!path)
     kissat_read_already_open_file (&file, stdin, "<stdin>");
@@ -769,72 +770,109 @@ static void print_limits (application *application) {
 
 #endif
 
-void kissat_write_branched(kissat *solver) {
-  FILE *file = fopen("/home/richard/project/neurosat/data/labels/branched.csv", "a+");
-  REVERSE_STACK(unsigned, solver->branched);
-  for (all_stack(unsigned, var, solver->branched)) {
-    fprintf(file, "%u\n", var);
+void log_solver_statistics (const char *cnf_filename, int res,
+                            double time_ms, double time_ms1,
+                            double time_ms2, unsigned long long decisions,
+                            unsigned long long conflicts) {
+  const char *csv_filename =
+      "/home/richard/project/kissat/decision_time_deleted_results.csv";
+  FILE *file = fopen (csv_filename, "a");
+  if (file == NULL) {
+    perror ("Error opening results CSV file");
+    return;
   }
-  fclose(file);
+  char result[10];
+  if (res == 20)
+    result[0] = 'U', result[1] = 'N', result[2] = 'S', result[3] = 'A',
+    result[4] = 'T', result[5] = '\0';
+  else if (res == 10)
+    result[0] = 'S', result[1] = 'A', result[2] = 'T', result[3] = '\0';
+  else
+    result[0] = 'U', result[1] = 'N', result[2] = 'K', result[3] = 'N',
+    result[4] = 'O', result[5] = 'W', result[6] = 'N', result[7] = '\0';
+  fprintf (file, "%s,%s,%.2f,%.2f,%.2f,%llu,%llu\n", cnf_filename, result,
+           time_ms, time_ms1, time_ms2, decisions, conflicts);
+  fclose (file);
 }
 
-static int run_application(kissat *solver, int argc, char **argv,
-                           bool *cancel_alarm_ptr) {
+static int run_application (kissat *solver, int argc, char **argv,
+                            bool *cancel_alarm_ptr) {
   *cancel_alarm_ptr = false;
   if (argc == 2)
-    if (parsed_one_option_and_return_zero_exit_code(argv[1]))
+    if (parsed_one_option_and_return_zero_exit_code (argv[1]))
       return 0;
   application application;
-  init_app(&application, solver);
-  bool ok = parse_options(&application, argc, argv);
+  init_app (&application, solver);
+  bool ok = parse_options (&application, argc, argv);
   if (application.time > 0)
     *cancel_alarm_ptr = true;
   if (!ok)
     return 1;
 #ifndef QUIET
-  kissat_section(solver, "banner");
-  if (!GET_OPTION(quiet)) {
-    kissat_banner("c ", SOLVER_NAME);
-    fflush(stdout);
+  kissat_section (solver, "banner");
+  if (!GET_OPTION (quiet)) {
+    kissat_banner ("c ", SOLVER_NAME);
+    fflush (stdout);
   }
 #endif
 #ifndef NPROOFS
-  if (!write_proof(&application))
+  if (!write_proof (&application))
     return 1;
 #endif
-  if (!parse_input(&application)) {
+  if (!parse_input (&application)) {
 #ifndef NPROOFS
-    close_proof(&application);
+    close_proof (&application);
 #endif
     return 1;
   }
 #ifndef QUIET
 #ifndef NOPTIONS
-  print_options(solver);
+  print_options (solver);
 #endif
-  print_limits(&application);
-  kissat_section(solver, "solving");
+  print_limits (&application);
+  kissat_section (solver, "solving");
 #endif
   //! 初始化solver->decided
   solver->decided = 0;
   //! 计时，写入time.csv
-  struct timespec start, end;
-  clock_gettime(CLOCK_MONOTONIC, &start);
-  int res = kissat_solve(solver);
-  clock_gettime(CLOCK_MONOTONIC, &end);
-  long time_ns =
-      (end.tv_sec - start.tv_sec) * 1000000000L + (end.tv_nsec - start.tv_nsec);
+  // struct timespec start, end;
+  clock_gettime (CLOCK_MONOTONIC, &solver->start);
+  solver->timeout = false;
+  int res = kissat_solve (solver);
+  clock_gettime (CLOCK_MONOTONIC, &solver->end);
+  long time_ns = (solver->end.tv_sec - solver->start.tv_sec) * 1000000000L +
+                 (solver->end.tv_nsec - solver->start.tv_nsec);
+  long time_ns1 = solver->decision_time_ns;
   double time_ms = time_ns / 1000000.0;
-  FILE *fp = fopen("/home/richard/project/kissat/time.csv", "a+");
-  fprintf(fp, "%.3e\n", time_ms);
-  fclose(fp);
-  //! 这里写入solver->branched
-  kissat_write_branched(solver);
+  double time_ms1 = time_ns1 / 1000000.0;
+  double time_ms2 = time_ms - time_ms1;
+  // FILE *fp = fopen ("/home/richard/project/kissat/time.csv", "a+");
+  // if (solver->timeout) {
+  //   fprintf (fp, "timeout\n");
+  // } else {
+  //   fprintf (fp, "%.3e\n", time_ms);
+  // }
+  // fclose (fp);
+
+  // if (solver->timeout == false) {
+  //   FILE *fp1 = fopen ("/home/richard/project/kissat/in_limit.csv",
+  //   "a+"); fprintf (fp1, "%s\n", application.input_path); fclose (fp1);
+  // } else {
+  //   FILE *fp2 =
+  //       fopen ("/home/richard/project/kissat/beyond_limit.csv", "a+");
+  //   fprintf (fp2, "%s\n", application.input_path);
+  //   fclose (fp2);
+  // }
+
+  log_solver_statistics (application.input_path, res, time_ms, time_ms1,
+                         time_ms2, solver->statistics.decisions,
+                         solver->statistics.conflicts);
+
 #ifndef NPROOFS
-  close_proof(&application);
+  close_proof (&application);
 #endif
-  kissat_section(solver, "result");
-  if (application.output_path && !strcmp(application.output_path, "-")) {
+  kissat_section (solver, "result");
+  if (application.output_path && !strcmp (application.output_path, "-")) {
     const char *status;
     if (res == 20)
       status = "UNSATISFIABLE";
@@ -842,26 +880,27 @@ static int run_application(kissat *solver, int argc, char **argv,
       status = "SATISFIABLE";
     else
       status = "UNKNOWN";
-    kissat_message(solver,
-                   "not printing 's %s' status line "
-                   "when writing DIMACS to '<stdout>'",
-                   status);
+    kissat_message (solver,
+                    "not printing 's %s' status line "
+                    "when writing DIMACS to '<stdout>'",
+                    status);
   } else {
     if (res == 20) {
-      printf("s UNSATISFIABLE\n");
-      fflush(stdout);
+      printf ("s UNSATISFIABLE\n");
+      fflush (stdout);
     } else if (res == 10) {
 #ifndef NDEBUG
-      if (GET_OPTION(check))
-        kissat_check_satisfying_assignment(solver);
+      if (GET_OPTION (check))
+        kissat_check_satisfying_assignment (solver);
 #endif
-      printf("s SATISFIABLE\n");
-      fflush(stdout);
-      if (application.witness)
-        kissat_print_witness(solver, application.max_var, application.partial);
+      printf ("s SATISFIABLE\n");
+      fflush (stdout);
+      // if (application.witness)
+      //   kissat_print_witness (solver, application.max_var,
+      //                         application.partial);
     } else {
-      printf("s UNKNOWN\n");
-      fflush(stdout);
+      printf ("s UNKNOWN\n");
+      fflush (stdout);
     }
   }
   if (application.output_path) {
@@ -869,25 +908,25 @@ static int run_application(kissat *solver, int argc, char **argv,
     const char *path = application.output_path;
     bool close_file;
     FILE *file;
-    if (!strcmp(path, "-")) {
+    if (!strcmp (path, "-")) {
       close_file = false;
       file = stdout;
     } else {
       close_file = true;
-      file = fopen(path, "w");
+      file = fopen (path, "w");
       if (!file)
-        ERROR("could not write DIMACS file '%s'", path);
+        ERROR ("could not write DIMACS file '%s'", path);
     }
-    kissat_write_dimacs(solver, file);
+    kissat_write_dimacs (solver, file);
     if (close_file)
-      fclose(file);
+      fclose (file);
   }
 #ifndef QUIET
-  kissat_print_statistics(solver);
+  kissat_print_statistics (solver);
 #endif
 #ifndef QUIET
-  kissat_section(solver, "shutting down");
-  kissat_message(solver, "exit %d", res);
+  kissat_section (solver, "shutting down");
+  kissat_message (solver, "exit %d", res);
 #endif
   return res;
 }
