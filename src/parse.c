@@ -313,6 +313,10 @@ parse_dimacs (kissat * solver, file * file,
   for (;;)
     {
       ch = NEXT ();
+	  if(ch=='%'){
+		parsed--;
+		continue;
+	  }
       if (ch == ' ')
 	continue;
       if (ch == '\t')

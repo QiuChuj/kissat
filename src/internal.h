@@ -32,34 +32,42 @@
 #include "value.h"
 #include "vector.h"
 #include "watch.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#include <sys/stat.h>  // 包含mkdir函数声明
+#include <sys/types.h> // 包含mode_t类型定义
 #include <time.h>
+#include <unistd.h>
 
 typedef struct datarank datarank;
 
 struct datarank {
-  unsigned data;
-  unsigned rank;
+    unsigned data;
+    unsigned rank;
 };
 
 typedef struct import import;
 
 struct import {
-  unsigned lit;
-  bool extension;
-  bool imported;
-  bool eliminated;
+    unsigned lit;
+    bool extension;
+    bool imported;
+    bool eliminated;
 };
 
 typedef struct termination termination;
 
 struct termination {
 #ifdef COVERAGE
-  volatile uint64_t flagged;
+    volatile uint64_t flagged;
 #else
-  volatile bool flagged;
+    volatile bool flagged;
 #endif
-  volatile void *state;
-  int (*volatile terminate) (void *);
+    volatile void *state;
+    int (*volatile terminate) (void *);
 };
 
 // clang-format off
@@ -74,182 +82,209 @@ typedef STACK (watch *) patches;
 
 struct kitten;
 
+//! 定义neurobranch数据结构
+struct shared_data {
+    int features[2][20000];
+    double result[500];
+    int ready;
+    unsigned n_vars;
+    unsigned n_clauses;
+};
+
+//! 定义neurobranch_simp数据结构
+struct shared_data_simp {
+    int features[8][1000];
+    double result[1000];
+    int ready;
+    unsigned n_vars;
+    unsigned n_clauses;
+};
+
 struct kissat {
 #if !defined(NDEBUG) || defined(METRICS)
-  bool backbone_computing;
+    bool backbone_computing;
 #endif
 #ifdef LOGGING
-  bool compacting;
+    bool compacting;
 #endif
-  bool extended;
-  bool inconsistent;
-  bool iterating;
-  bool preprocessing;
-  bool probing;
+    bool extended;
+    bool inconsistent;
+    bool iterating;
+    bool preprocessing;
+    bool probing;
 #ifndef QUIET
-  bool sectioned;
+    bool sectioned;
 #endif
-  bool stable;
+    bool stable;
 #if !defined(NDEBUG) || defined(METRICS)
-  bool transitive_reducing;
-  bool vivifying;
+    bool transitive_reducing;
+    bool vivifying;
 #endif
-  bool warming;
-  bool watching;
+    bool warming;
+    bool watching;
 
-  bool large_clauses_watched_after_binary_clauses;
+    bool large_clauses_watched_after_binary_clauses;
 
-  termination termination;
+    termination termination;
 
-  unsigned vars;
-  unsigned size;
-  unsigned active;
-  unsigned randec;
-  int decided;
-  //! 设置时间变量用于计时
-  struct timespec start, end;
-  long decision_time_ns;
-  //! 设置超时标记
-  bool timeout;
+    unsigned vars;
+    unsigned size;
+    unsigned active;
+    unsigned randec;
+    int decided;
+    //! 设置时间变量用于计时
+    struct timespec start, end;
+    long decision_time_ns;
+    //! 设置超时标记
+    bool timeout;
+    //! 输入路径
+    char input_path[256];
+    //! neurobranch相关变量
+    int neurobranch_mode;
+    key_t key;
+    int shmid;
+    struct shared_data *data;
+    struct shared_data_simp *data_simp;
+    int semid;
 
-  ints export;
-  ints units;
-  imports import;
-  extensions extend;
-  unsigneds witness;
+    ints export;
+    ints units;
+    imports import;
+    extensions extend;
+    unsigneds witness;
 
-  assigned *assigned;
-  flags *flags;
+    assigned *assigned;
+    flags *flags;
 
-  mark *marks;
+    mark *marks;
 
-  //! 这里是一个指针数组，表示每个变量的值。
-  value *values;
-  phases phases;
+    //! 这里是一个指针数组，表示每个变量的值。
+    value *values;
+    phases phases;
 
-  eliminated eliminated;
-  unsigneds etrail;
+    eliminated eliminated;
+    unsigneds etrail;
 
-  links *links;
-  queue queue;
+    links *links;
+    queue queue;
 
-  //! 这里是一个堆，存储变量的得分。
-  heap scores;
-  double scinc;
+    //! 这里是一个堆，存储变量的得分。
+    heap scores;
+    double scinc;
 
-  heap schedule;
-  double scoreshift;
+    heap schedule;
+    double scoreshift;
 
-  unsigned level;
-  frames frames;
+    unsigned level;
+    frames frames;
 
-  unsigned_array trail;
-  unsigned *propagate;
+    unsigned_array trail;
+    unsigned *propagate;
 
-  unsigned best_assigned;
-  unsigned target_assigned;
-  unsigned unflushed;
-  unsigned unassigned;
+    unsigned best_assigned;
+    unsigned target_assigned;
+    unsigned unflushed;
+    unsigned unassigned;
 
-  unsigneds delayed;
+    unsigneds delayed;
 
 #if defined(LOGGING) || !defined(NDEBUG)
-  unsigneds resolvent;
+    unsigneds resolvent;
 #endif
-  unsigned resolvent_size;
-  unsigned antecedent_size;
+    unsigned resolvent_size;
+    unsigned antecedent_size;
 
-  dataranks ranks;
+    dataranks ranks;
 
-  unsigneds analyzed;
-  unsigneds levels;
-  unsigneds minimize;
-  unsigneds poisoned;
-  unsigneds promote;
-  unsigneds removable;
-  unsigneds shrinkable;
+    unsigneds analyzed;
+    unsigneds levels;
+    unsigneds minimize;
+    unsigneds poisoned;
+    unsigneds promote;
+    unsigneds removable;
+    unsigneds shrinkable;
 
-  clause conflict;
+    clause conflict;
 
-  bool clause_satisfied;
-  bool clause_shrink;
-  bool clause_trivial;
+    bool clause_satisfied;
+    bool clause_shrink;
+    bool clause_trivial;
 
-  unsigneds clause;
-  unsigneds shadow;
+    unsigneds clause;
+    unsigneds shadow;
 
-  arena arena;
-  vectors vectors;
-  reference first_reducible;
-  reference last_irredundant;
-  watches *watches;
+    arena arena;
+    vectors vectors;
+    reference first_reducible;
+    reference last_irredundant;
+    watches *watches;
 
-  reference last_learned[4];
+    reference last_learned[4];
 
-  sizes sorter;
+    sizes sorter;
 
-  generator random;
-  averages averages[2];
-  unsigned tier1[2], tier2[2];
-  reluctant reluctant;
+    generator random;
+    averages averages[2];
+    unsigned tier1[2], tier2[2];
+    reluctant reluctant;
 
-  bounds bounds;
-  classification classification;
-  delays delays;
-  enabled enabled;
-  limited limited;
-  limits limits;
-  remember last;
-  unsigned walked;
+    bounds bounds;
+    classification classification;
+    delays delays;
+    enabled enabled;
+    limited limited;
+    limits limits;
+    remember last;
+    unsigned walked;
 
-  mode mode;
+    mode mode;
 
-  uint64_t ticks;
+    uint64_t ticks;
 
-  format format;
+    format format;
 
-  statches antecedents[2];
-  statches gates[2];
-  patches xorted[2];
-  unsigneds resolvents;
-  bool resolve_gate;
+    statches antecedents[2];
+    statches gates[2];
+    patches xorted[2];
+    unsigneds resolvents;
+    bool resolve_gate;
 
-  struct kitten *kitten;
+    struct kitten *kitten;
 #ifdef METRICS
-  uint64_t *gate_eliminated;
+    uint64_t *gate_eliminated;
 #else
-  bool gate_eliminated;
+    bool gate_eliminated;
 #endif
-  bool sweep_incomplete;
-  unsigneds sweep_schedule;
+    bool sweep_incomplete;
+    unsigneds sweep_schedule;
 
 #if !defined(NDEBUG) || !defined(NPROOFS)
-  unsigneds added;
-  unsigneds removed;
+    unsigneds added;
+    unsigneds removed;
 #endif
 
 #if !defined(NDEBUG) || !defined(NPROOFS) || defined(LOGGING)
-  ints original;
-  size_t offset_of_last_original_clause;
+    ints original;
+    size_t offset_of_last_original_clause;
 #endif
 
 #ifndef QUIET
-  profiles profiles;
+    profiles profiles;
 #endif
 
 #ifndef NOPTIONS
-  options options;
+    options options;
 #endif
 
 #ifndef NDEBUG
-  checker *checker;
+    checker *checker;
 #endif
 
 #ifndef NPROOFS
-  proof *proof;
+    proof *proof;
 #endif
 
-  statistics statistics;
+    statistics statistics;
 };
 
 #define VARS (solver->vars)
@@ -268,36 +303,36 @@ struct kissat {
 #define SCORES (&solver->scores)
 
 static inline unsigned kissat_assigned (kissat *solver) {
-  assert (VARS >= solver->unassigned);
-  return VARS - solver->unassigned;
+    assert (VARS >= solver->unassigned);
+    return VARS - solver->unassigned;
 }
 
 #define all_variables(IDX) \
-  unsigned IDX = 0, IDX##_END = solver->vars; \
-  IDX != IDX##_END; \
-  ++IDX
+    unsigned IDX = 0, IDX##_END = solver->vars; \
+    IDX != IDX##_END; \
+    ++IDX
 
 #define all_literals(LIT) \
-  unsigned LIT = 0, LIT##_END = LITS; \
-  LIT != LIT##_END; \
-  ++LIT
+    unsigned LIT = 0, LIT##_END = LITS; \
+    LIT != LIT##_END; \
+    ++LIT
 
 #define all_clauses(C) \
-  clause *C = (clause *) BEGIN_STACK (solver->arena), \
-         *const C##_END = (clause *) END_STACK (solver->arena), *C##_NEXT; \
-  C != C##_END && (C##_NEXT = kissat_next_clause (C), true); \
-  C = C##_NEXT
+    clause *C = (clause *) BEGIN_STACK (solver->arena), \
+           *const C##_END = (clause *) END_STACK (solver->arena), *C##_NEXT; \
+    C != C##_END && (C##_NEXT = kissat_next_clause (C), true); \
+    C = C##_NEXT
 
 #define capacity_last_learned \
-  (sizeof solver->last_learned / sizeof *solver->last_learned)
+    (sizeof solver->last_learned / sizeof *solver->last_learned)
 
 #define real_end_last_learned (solver->last_learned + capacity_last_learned)
 
 #define really_all_last_learned(REF_PTR) \
-  reference *REF_PTR = solver->last_learned, \
-            *REF_PTR##_END = real_end_last_learned; \
-  REF_PTR != REF_PTR##_END; \
-  REF_PTR++
+    reference *REF_PTR = solver->last_learned, \
+              *REF_PTR##_END = real_end_last_learned; \
+    REF_PTR != REF_PTR##_END; \
+    REF_PTR++
 
 void kissat_reset_last_learned (kissat *solver);
 

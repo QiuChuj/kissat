@@ -10,3 +10,5 @@ tissat
 *.gcov
 gmon.out
 *~
+logs
+batch_logs
