@@ -146,6 +146,15 @@ struct kissat {
     struct shared_data *data;
     struct shared_data_simp *data_simp;
     int semid;
+    //! simple版的八个特征向量
+    int apperance_count[1000];
+    int decision_level[1000];
+    int decision_sequence[1000];
+    int conflict_apperance[1000];
+    int generated_appearance[1000];
+    int polarity_positive[1000];
+    int short_clause_appearance[1000];
+    int LBD_min[1000];
 
     ints export;
     ints units;

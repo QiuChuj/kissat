@@ -219,96 +219,43 @@ int kissat_decide_phase (kissat *solver, unsigned idx) {
     return res < 0 ? -1 : 1;
 }
 
-// void kissat_write_cnf (kissat *solver, const char *filename) {
-//   FILE *file = fopen (filename, "w");
-//   unsigned clause_count = 0;
-//   for (all_clauses (C)) {
-//     if (!C->garbage && !C->shrunken) {
-//       clause_count++;
-//     }
-//   }
-//   fprintf (file, "p cnf %u %u\n", solver->vars, clause_count);
-//   for (all_clauses (C)) {
-//     if (C->garbage || C->shrunken)
-//       continue;
-//     for (unsigned i = 0; i < C->size; i++) {
-//       unsigned lit_index = C->lits[i];
-//       int var_index = lit_index / 2;
-//       int sign = (lit_index % 2 == 0) ? 1 : -1;
-//       fprintf (file, "%d ", sign * (var_index + 1));
-//     }
-//     fprintf (file, "0\n");
-//   }
-//   fclose (file);
-// }
+void kissat_write_cnf (kissat *solver, const char *filename) {
+    FILE *file = fopen (filename, "w");
+    unsigned clause_count = 0;
+    for (all_clauses (C)) {
+        if (!C->garbage && !C->shrunken) {
+            clause_count++;
+        }
+    }
+    fprintf (file, "p cnf %u %u\n", solver->vars, clause_count);
+    for (all_clauses (C)) {
+        if (C->garbage || C->shrunken)
+            continue;
+        for (unsigned i = 0; i < C->size; i++) {
+            unsigned lit_index = C->lits[i];
+            int var_index = lit_index / 2;
+            int sign = (lit_index % 2 == 0) ? 1 : -1;
+            fprintf (file, "%d ", sign * (var_index + 1));
+        }
+        fprintf (file, "0\n");
+    }
+    fclose (file);
+}
 
-// void kissat_write_scores (kissat *solver, const char *filename) {
-//   FILE *file = fopen (filename, "w");
-//   heap *score_output = &solver->scores;
-//   unsigned idx = 0;
-//   for (idx = 0; idx < score_output->vars; idx++) {
+void kissat_write_scores (kissat *solver, const char *filename) {
+    FILE *file = fopen (filename, "w");
+    heap *score_output = &solver->scores;
+    unsigned idx = 0;
+    for (idx = 0; idx < score_output->vars; idx++) {
 
-//     // unsigned _pos = score_output->pos[idx];
-//     fprintf (file, "%f,%u\n", score_output->score[idx],
-//              score_output->pos[idx]);
-//     // fprintf (file, "%u\n", score_output->pos[idx]);
-//     // fprintf (file, "%u\n", score_output->stack.begin[idx]);
-//   }
-//   fclose (file);
-// }
-
-// unsigned kissat_pick_benchmark (char *filename) {
-//   FILE *file = fopen (filename, "r");
-//   char line[1024]; // 缓冲区存储读取的行
-//   if (fgets (line, sizeof (line), file) == NULL) {
-//     fclose (file);
-//     printf ("Error: File is empty\n");
-//     return 0; // 返回 0 表示错误（文件为空）
-//   }
-//   fclose (file); // 读取后立即关闭文件
-//   // 创建行的副本，因为 strtok 会修改原始字符串
-//   char line_copy[1024];
-//   strncpy (line_copy, line, sizeof (line_copy));
-//   line_copy[sizeof (line_copy) - 1] = '\0'; // 确保字符串终止
-//   // 第一遍：计算 token 数量（数组元素个数）
-//   int count = 0;
-//   char *token = strtok (line_copy, ",");
-//   while (token != NULL) {
-//     count++;
-//     token = strtok (NULL, ",");
-//   }
-//   if (count == 0) {
-//     printf ("Error: No data found in CSV\n");
-//     return 0; // 返回 0 表示错误（无数据）
-//   }
-//   // 第二遍：解析数值并存储到数组
-//   double *values = (double *) malloc (count * sizeof (double));
-//   if (values == NULL) {
-//     perror ("Error: Memory allocation failed");
-//     return 0; // 返回 0 表示错误（内存分配失败）
-//   }
-//   // 创建另一个副本用于解析数值
-//   strncpy (line_copy, line, sizeof (line_copy));
-//   line_copy[sizeof (line_copy) - 1] = '\0';
-//   int index = 0;
-//   token = strtok (line_copy, ",");
-//   while (token != NULL && index < count) {
-//     values[index] = atof (token); // 将字符串转换为 double
-//     index++;
-//     token = strtok (NULL, ",");
-//   }
-//   // 查找最大值元素的索引
-//   double max_val = -DBL_MAX; // 初始化为最小可能的 double 值
-//   unsigned max_index = 0;
-//   for (int i = 0; i < count; i++) {
-//     if (values[i] > max_val) {
-//       max_val = values[i];
-//       max_index = i;
-//     }
-//   }
-//   free (values);    // 释放动态分配的内存
-//   return max_index; // 返回最大值元素的索引（从 0 开始）
-// }
+        // unsigned _pos = score_output->pos[idx];
+        fprintf (file, "%f,%u\n", score_output->score[idx],
+                 score_output->pos[idx]);
+        // fprintf (file, "%u\n", score_output->pos[idx]);
+        // fprintf (file, "%u\n", score_output->stack.begin[idx]);
+    }
+    fclose (file);
+}
 
 //! 这里是共享内存操作
 
@@ -376,7 +323,20 @@ void apply_neurobranch_simp (kissat *solver) {
     sem_op (solver->semid, -1);
 
     // 准备数据
-    //! 这里是提取八个特征向量的代码
+    //! 这里是提取特征向量的代码
+    //! 1、统计每个variable在所有子句中的出现次数
+    unsigned l = 0;
+    for (all_clauses (C)) {
+        if (C->garbage || C->shrunken)
+            continue;
+        if (!C->var_count_used) {
+            C->var_count_used = true;
+            for (l = 0; l < C->size; l++) {
+            }
+        } else
+            continue;
+    }
+    //! 这里是提取特征向量的代码
 
     // 等待Python处理
     while (solver->data->ready != 2) {
