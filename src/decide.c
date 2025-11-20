@@ -242,17 +242,36 @@ void kissat_write_cnf (kissat *solver, const char *filename) {
     fclose (file);
 }
 
+void kissat_write_simple_features (kissat *solver, const char *filename) {
+    FILE *file = fopen (filename, "w");
+    unsigned idx = 0;
+    for (idx = 0; idx < 1000; idx++) {
+        fprintf (file, "%f,%f,%f,%f,%f,%f,%f,%f\n",
+                 (double) solver->appearance_count[idx],
+                 (double) solver->conflict_appearance[idx],
+                 (double) solver->decision_num[idx],
+                 (double) solver->generated_appearance[idx],
+                 (double) solver->LBD_min[idx],
+                 (double) solver->short_clause_appearance[idx],
+                 (double) solver->decision_level[idx],
+                 (double) solver->polarity_distribution[idx]);
+    }
+    fclose (file);
+}
+
 void kissat_write_scores (kissat *solver, const char *filename) {
     FILE *file = fopen (filename, "w");
-    heap *score_output = &solver->scores;
     unsigned idx = 0;
-    for (idx = 0; idx < score_output->vars; idx++) {
-
-        // unsigned _pos = score_output->pos[idx];
-        fprintf (file, "%f,%u\n", score_output->score[idx],
-                 score_output->pos[idx]);
-        // fprintf (file, "%u\n", score_output->pos[idx]);
-        // fprintf (file, "%u\n", score_output->stack.begin[idx]);
+    for (idx = 0; idx < 1000; idx++) {
+        fprintf (file, "%f,%f,%f,%f,%f,%f,%f,%f\n",
+                 (double) solver->appearance_count[idx],
+                 (double) solver->conflict_appearance[idx],
+                 (double) solver->decision_num[idx],
+                 (double) solver->generated_appearance[idx],
+                 (double) solver->LBD_min[idx],
+                 (double) solver->short_clause_appearance[idx],
+                 (double) solver->decision_level[idx],
+                 (double) solver->polarity_distribution[idx]);
     }
     fclose (file);
 }
@@ -277,7 +296,6 @@ int countDistinctExceptZeroSorted (int arr[], int size) {
             lastNumber = arr[i];
         }
     }
-
     return uniqueCount;
 }
 
@@ -287,6 +305,54 @@ int countDistinctExceptZeroSorted (int arr[], int size) {
 void sem_op (int semid, int op) {
     struct sembuf sb = {0, op, 0};
     semop (semid, &sb, 1);
+}
+
+void get_simp_data (kissat *solver) {
+    //! 这里是提取特征向量的代码
+    int clause_count = 0;
+    unsigned l = 0;
+    for (all_clauses (C)) {
+        if (C->garbage || C->shrunken || C->var_count_used)
+            continue;
+        C->var_count_used = true;
+        int decision_levels[50];
+        for (l = 0; l < C->size; l++) {
+            //! 1、统计每个variable在所有子句中的出现次数
+            int var = C->lits[l] / 2;
+            solver->appearance_count[var]++;
+            //! 2、统计在短子句中出现的次数
+            if (C->size <= 2)
+                solver->short_clause_appearance[var]++;
+            //! 3、统计极性
+            if (C->lits[l] % 2 == 0)
+                solver->polarity_positive[var]++;
+            solver->polarity_distribution[var] =
+                solver->polarity_positive[var] / solver->appearance_count[var];
+            //! 4、统计在生成子句中出现的次数
+            if (!C->resident)
+                solver->generated_appearance[var]++;
+            //! 5、统计LBD
+            decision_levels[l] = solver->decision_level[var];
+
+            //! 决策层提取的代码在inlineassign.h的78行
+            //! 决策次数提取代码在下面的kissat_decide函数中
+            //! 冲突子句中出现次数提取代码在search.c中
+        }
+        C->LBD = countDistinctExceptZeroSorted (decision_levels, l);
+        clause_count++;
+    }
+    for (all_clauses (C)) {
+        for (l = 0; l < C->size; l++) {
+            int var = C->lits[l] / 2;
+            if (solver->LBD_min[var] == 0) {
+                solver->LBD_min[var] = C->LBD;
+                continue;
+            } else {
+                if (C->LBD < solver->LBD_min[var])
+                    solver->LBD_min[var] = C->LBD;
+            }
+        }
+    }
 }
 
 //! 第一种思路：直接使用整个cnf文件作为输入
@@ -347,56 +413,13 @@ void apply_neurobranch_simp (kissat *solver) {
     sem_op (solver->semid, -1);
 
     // 准备数据
-    //! 这里是提取特征向量的代码
-    int clause_count = 0;
-    unsigned l = 0;
-    for (all_clauses (C)) {
-        if (C->garbage || C->shrunken || C->var_count_used)
-            continue;
-        C->var_count_used = true;
-        int decision_levels[50];
-        for (l = 0; l < C->size; l++) {
-            //! 1、统计每个variable在所有子句中的出现次数
-            int var = C->lits[l] / 2;
-            solver->apperance_count[var]++;
-            //! 2、统计在短子句中出现的次数
-            if (C->size <= 2)
-                solver->short_clause_appearance[var]++;
-            //! 3、统计极性
-            if (C->lits[l] % 2 == 0)
-                solver->polarity_positive[var]++;
-            solver->polarity_distribution[var] =
-                solver->polarity_positive[var] / solver->apperance_count[var];
-            //! 4、统计在生成子句中出现的次数
-            if (!C->resident)
-                solver->generated_appearance[var]++;
-            //! 5、统计LBD
-            decision_levels[l] = solver->decision_level[var];
-
-            //! 决策层提取的代码在inlineassign.h的78行
-            //! 决策次数提取代码在下面的kissat_decide函数中
-            //! 冲突子句中出现次数提取代码在search.c中
-        }
-        C->LBD = countDistinctExceptZeroSorted (decision_levels, l);
-        clause_count++;
-    }
-    for (all_clauses (C)) {
-        for (l = 0; l < C->size; l++) {
-            int var = C->lits[l] / 2;
-            if (solver->LBD_min[var] == 0) {
-                solver->LBD_min[var] = C->LBD;
-                continue;
-            } else {
-                if (C->LBD < solver->LBD_min[var])
-                    solver->LBD_min[var] = C->LBD;
-            }
-        }
-    }
+    int l;
     for (l = 0; l < 1000; l++) {
         //! 八个特征向量填入共享内存
-        solver->data_simp->features[0][l] = (double) solver->apperance_count[l];
+        solver->data_simp->features[0][l] =
+            (double) solver->appearance_count[l];
         solver->data_simp->features[1][l] =
-            (double) solver->conflict_apperance[l];
+            (double) solver->conflict_appearance[l];
         solver->data_simp->features[2][l] = (double) solver->decision_num[l];
         solver->data_simp->features[3][l] =
             (double) solver->generated_appearance[l];
@@ -408,7 +431,6 @@ void apply_neurobranch_simp (kissat *solver) {
             (double) solver->polarity_distribution[l];
     }
     solver->data_simp->ready = 1;
-    //! 这里是提取特征向量的代码
 
     // 等待Python处理
     while (solver->data_simp->ready != 2) {
@@ -448,36 +470,41 @@ void kissat_decide (kissat *solver) {
 
     //! 加入了模式判断逻辑，自动执行对应代码
     solver->decided++;
-    if (!solver->neurobranch_mode) {
+    if (!solver->use_neurobranch) {
+        //! 不使用neurobranch
+    } else if (solver->train_mode) {
         //! train
-        //! 输出当前clauses
-        char filepath[256];
-        snprintf (
-            filepath, sizeof (filepath),
-            "/home/richard/project/neurobranch_simp/dimacs/train/clauses/%s/",
-            solver->input_path);
-        mode_t mode = 0755;
-        mkdir (filepath, mode);
-        snprintf (
-            filepath, sizeof (filepath),
-            "/home/richard/project/neurobranch_simp/dimacs/train/scores/%s/",
-            solver->input_path);
-        mkdir (filepath, mode);
-        char filename[256];
-        snprintf (
-            filename, sizeof (filename),
-            "/home/richard/project/neurobranch_simp/dimacs/train/clauses/%s/"
-            "decision%d.cnf",
-            solver->input_path, solver->decided);
-        kissat_write_cnf (solver, filename);
-        //! 输出当前变量的EVSIDS得分
-        char filename2[256];
-        snprintf (
-            filename2, sizeof (filename2),
-            "/home/richard/project/neurobranch_simp/dimacs/train/scores/%s/"
-            "decision%d.csv",
-            solver->input_path, solver->decided);
-        kissat_write_scores (solver, filename2);
+        if (!solver->simple_mode) {
+            //! 提取原始版本neurobranch训练数据
+            //! 输出当前clauses
+            char filepath[256];
+            snprintf (
+                filepath, sizeof (filepath),
+                "/home/richard/project/neurobranch/dimacs/train/clauses/%s/",
+                solver->input_path);
+            mode_t mode = 0755;
+            mkdir (filepath, mode);
+            snprintf (
+                filepath, sizeof (filepath),
+                "/home/richard/project/neurobranch/dimacs/train/scores/%s/",
+                solver->input_path);
+            mkdir (filepath, mode);
+            char filename[256];
+            snprintf (
+                filename, sizeof (filename),
+                "/home/richard/project/neurobranch/dimacs/train/clauses/%s/"
+                "decision%d.cnf",
+                solver->input_path, solver->decided);
+            kissat_write_cnf (solver, filename);
+            //! 输出当前变量的得分
+            char filename2[256];
+            snprintf (
+                filename2, sizeof (filename2),
+                "/home/richard/project/neurobranch/dimacs/train/scores/%s/"
+                "decision%d.csv",
+                solver->input_path, solver->decided);
+            kissat_write_scores (solver, filename2);
+        }
     } else { //! apply
         if (solver->decided % 10 == 0) {
             if (solver->neurobranch_mode == 1)

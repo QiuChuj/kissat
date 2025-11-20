@@ -46,3 +46,7 @@ University of Helsinki 2024
 </p>
 
 See [NEWS.md](NEWS.md) for feature updates.
+
+richard_branch使用说明：
+
+本人重新构建的kissat设置了三个模式变量，位于config/config.json中。其中use_neurobranch决定是否使用neurobranch；train_mode决定是否使用训练模式；simple_mode决定是否使用neurobranch_simp（仅在use_neurobranch==1条件下生效）

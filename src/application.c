@@ -812,13 +812,13 @@ void get_filename (const char *path, char *result) {
     }
 }
 
-int get_mode () {
+void get_mode (kissat *solver) {
     const char *filename = "/home/richard/project/kissat/config/config.json";
     FILE *file = fopen (filename, "r");
 
     if (!file) {
         fprintf (stderr, "错误: 无法打开配置文件 %s\n", filename);
-        return -1;
+        return;
     }
 
     // 读取整个文件内容
@@ -830,54 +830,47 @@ int get_mode () {
     if (!content) {
         fprintf (stderr, "错误: 内存分配失败\n");
         fclose (file);
-        return -1;
+        return;
     }
 
     fread (content, 1, file_size, file);
     content[file_size] = '\0';
     fclose (file);
 
-    // 查找 "mode" 键
-    char *mode_pos = strstr (content, "\"mode\"");
-    if (!mode_pos) {
-        fprintf (stderr, "错误: 未找到'mode'键\n");
-        free (content);
-        return -1;
-    }
-
-    // 查找冒号
+    // 读取train_mode
+    char *mode_pos = strstr (content, "\"train_mode\"");
     char *colon_pos = strchr (mode_pos, ':');
-    if (!colon_pos) {
-        fprintf (stderr, "错误: 在'mode'后未找到冒号\n");
-        free (content);
-        return -1;
-    }
-
-    // 跳过冒号和可能的空格
     char *value_start = colon_pos + 1;
     while (*value_start && isspace (*value_start)) {
         value_start++;
     }
-
-    if (!*value_start) {
-        fprintf (stderr, "错误: 在冒号后未找到值\n");
-        free (content);
-        return -1;
-    }
-
-    // 解析整数值
     char *end_ptr;
     long mode_value = strtol (value_start, &end_ptr, 10);
+    solver->train_mode = (int) mode_value;
 
-    // 检查转换是否成功
-    if (end_ptr == value_start) {
-        fprintf (stderr, "错误: 无法解析'mode'的整数值\n");
-        free (content);
-        return -1;
+    // 读取simple_mode
+    char *_mode_pos = strstr (content, "\"simple_mode\"");
+    char *_colon_pos = strchr (_mode_pos, ':');
+    char *_value_start = _colon_pos + 1;
+    while (*_value_start && isspace (*_value_start)) {
+        _value_start++;
     }
+    char *_end_ptr;
+    long _mode_value = strtol (_value_start, &_end_ptr, 10);
+    solver->train_mode = (int) _mode_value;
+
+    // 读取use_neurobranch
+    char *_mode_pos_ = strstr (content, "\"读取use_neurobranch\"");
+    char *_colon_pos_ = strchr (_mode_pos_, ':');
+    char *_value_start_ = _colon_pos_ + 1;
+    while (*_value_start_ && isspace (*_value_start_)) {
+        _value_start_++;
+    }
+    char *_end_ptr_;
+    long _mode_value_ = strtol (_value_start_, &_end_ptr_, 10);
+    solver->use_neurobranch = (int) _mode_value_;
 
     free (content);
-    return (int) mode_value;
 }
 
 static int run_application (kissat *solver, int argc, char **argv,
@@ -922,12 +915,15 @@ static int run_application (kissat *solver, int argc, char **argv,
     for (all_clauses (C)) {
         C->resident = true;
     }
-    solver->neurobranch_mode = get_mode ();
+    get_mode (solver);
     solver->decided = 0;
     get_filename (application.input_path, solver->input_path);
     system ("touch /tmp/nn_shared");
     solver->key = ftok ("/tmp/nn_shared", 83);
-    if (solver->neurobranch_mode == 1) {
+    if (!solver->use_neurobranch && solver->train_mode) {
+        //! 如果不使用neurobranch或处于训练模式就不建共享内存
+    } else if (solver->simple_mode == 0) {
+        //! 如果使用原始版本neurobranch，并且是apply模式，构建第一种共享内存
         solver->shmid =
             shmget (solver->key, sizeof (struct shared_data), 0666 | IPC_CREAT);
         solver->data = (struct shared_data *) shmat (solver->shmid, NULL, 0);
@@ -936,8 +932,8 @@ static int run_application (kissat *solver, int argc, char **argv,
             memset (solver->data, 0, sizeof (struct shared_data));
         }
         solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT);
-    }
-    if (solver->neurobranch_mode == 2) {
+    } else if (solver->simple_mode == 1) {
+        //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
         solver->shmid = shmget (solver->key, sizeof (struct shared_data_simp),
                                 0666 | IPC_CREAT);
         solver->data_simp =
@@ -960,8 +956,11 @@ static int run_application (kissat *solver, int argc, char **argv,
     double time_ms = time_ns / 1000000.0;
     double time_ms1 = time_ns1 / 1000000.0;
     double time_ms2 = time_ms - time_ms1;
-    if (solver->neurobranch_mode) {
-        shmdt (solver->data);
+    if (!solver->train_mode) {
+        if (!solver->simple_mode)
+            shmdt (solver->data);
+        else
+            shmdt (solver->data_simp);
         shmctl (solver->shmid, IPC_RMID, NULL);
     }
 

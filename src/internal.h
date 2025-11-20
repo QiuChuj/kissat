@@ -139,16 +139,18 @@ struct kissat {
     bool timeout;
     //! 输入路径
     char input_path[256];
-    //! neurobranch相关变量
-    int neurobranch_mode;
+    //! neurobranch模式变量
+    int use_neurobranch;
+    int train_mode;
+    int simple_mode;
     key_t key;
     int shmid;
     struct shared_data *data;
     struct shared_data_simp *data_simp;
     int semid;
     //! simple版的八个特征向量，已按顺序排列好
-    int apperance_count[1000];
-    int conflict_apperance[1000];
+    int appearance_count[1000];
+    int conflict_appearance[1000];
     int decision_num[1000];
     int generated_appearance[1000];
     int LBD_min[1000];

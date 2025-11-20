@@ -1,3 +1,5 @@
 {
-    "mode": 2
+    "use_neurobranch": 1,
+    "train_mode": 1,
+    "simle_mode": 1
 }
