@@ -93,7 +93,7 @@ struct shared_data {
 
 //! 定义neurobranch_simp数据结构
 struct shared_data_simp {
-    int features[8][1000];
+    double features[8][1000];
     double result[1000];
     int ready;
     unsigned n_vars;
@@ -146,15 +146,16 @@ struct kissat {
     struct shared_data *data;
     struct shared_data_simp *data_simp;
     int semid;
-    //! simple版的八个特征向量
+    //! simple版的八个特征向量，已按顺序排列好
     int apperance_count[1000];
-    int decision_level[1000];
-    int decision_sequence[1000];
     int conflict_apperance[1000];
+    int decision_num[1000];
     int generated_appearance[1000];
-    int polarity_positive[1000];
-    int short_clause_appearance[1000];
     int LBD_min[1000];
+    int short_clause_appearance[1000];
+    unsigned decision_level[1000];
+    double polarity_distribution[1000];
+    int polarity_positive[1000];
 
     ints export;
     ints units;
@@ -184,6 +185,7 @@ struct kissat {
     heap schedule;
     double scoreshift;
 
+    //! 决策层
     unsigned level;
     frames frames;
 

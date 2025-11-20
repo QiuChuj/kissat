@@ -29,11 +29,15 @@ struct clause {
     bool vivify : 1;
     //! 这里加一个统计变量，表示子句在变量出现次数统计中有没有使用过
     bool var_count_used : 1;
+    //! 是否是生成子句，是则为0，不是则为1
+    bool resident : 1;
 
     unsigned used : LD_MAX_USED;
 
     unsigned searched;
     unsigned size;
+    //! LBD
+    int LBD;
 
     unsigned lits[3];
 };

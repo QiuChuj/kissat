@@ -776,7 +776,7 @@ void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             unsigned long long decisions,
                             unsigned long long conflicts) {
     const char *csv_filename =
-        "/home/richard/project/kissat/neurobranch_results.csv";
+        "/home/richard/project/kissat/neurobranch_simp_results.csv";
     FILE *file = fopen (csv_filename, "a");
     if (file == NULL) {
         perror ("Error opening results CSV file");
@@ -918,6 +918,10 @@ static int run_application (kissat *solver, int argc, char **argv,
     kissat_section (solver, "solving");
 #endif
     //! 初始化
+    int clause_count = 0;
+    for (all_clauses (C)) {
+        C->resident = true;
+    }
     solver->neurobranch_mode = get_mode ();
     solver->decided = 0;
     get_filename (application.input_path, solver->input_path);

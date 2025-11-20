@@ -550,6 +550,7 @@ int kissat_analyze (kissat *solver, clause *conflict) {
             analyze_failed_literal (solver, conflict);
             res = 1;
         } else if ((conflict =
+
                         kissat_deduce_first_uip_clause (solver, conflict))) {
             // printf ("4\n");
             reset_analysis_but_not_analyzed_literals (solver);
