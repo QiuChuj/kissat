@@ -190,6 +190,7 @@ int kissat_search (kissat *solver) {
     if (!res)
         kissat_classify (solver);
     if (!res && searching (solver)) {
+        // printf ("Search Starts\n");
         start_search (solver);
         while (!res) {
             clock_gettime (CLOCK_MONOTONIC, &solver->end);
@@ -202,14 +203,15 @@ int kissat_search (kissat *solver) {
             //     solver->timeout = true;
             // }
             clause *conflict = kissat_search_propagate (solver);
-            //! 提取冲突子句中出现次数
-            int i = 0;
-            for (i = 0; i < conflict->size; i++) {
-                solver->conflict_apperance[conflict->lits[i]]++;
-            }
-            if (conflict)
+            printf ("提取结束\n");
+            if (conflict) {
+                //! 提取冲突子句中出现次数
+                int i = 0;
+                for (i = 0; i < conflict->size; i++) {
+                    solver->conflict_appearance[conflict->lits[i]]++;
+                }
                 res = kissat_analyze (solver, conflict);
-            else if (solver->iterating)
+            } else if (solver->iterating)
                 iterate (solver);
             else if (!solver->unassigned)
                 res = 10;

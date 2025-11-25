@@ -822,9 +822,11 @@ void get_mode (kissat *solver) {
     }
 
     // 读取整个文件内容
+    // printf ("1\n");
     fseek (file, 0, SEEK_END);
     long file_size = ftell (file);
     fseek (file, 0, SEEK_SET);
+    // printf ("2\n");
 
     char *content = (char *) malloc (file_size + 1);
     if (!content) {
@@ -832,10 +834,12 @@ void get_mode (kissat *solver) {
         fclose (file);
         return;
     }
+    // printf ("3\n");
 
     fread (content, 1, file_size, file);
     content[file_size] = '\0';
     fclose (file);
+    // printf ("4\n");
 
     // 读取train_mode
     char *mode_pos = strstr (content, "\"train_mode\"");
@@ -847,6 +851,7 @@ void get_mode (kissat *solver) {
     char *end_ptr;
     long mode_value = strtol (value_start, &end_ptr, 10);
     solver->train_mode = (int) mode_value;
+    // printf ("5\n");
 
     // 读取simple_mode
     char *_mode_pos = strstr (content, "\"simple_mode\"");
@@ -857,10 +862,11 @@ void get_mode (kissat *solver) {
     }
     char *_end_ptr;
     long _mode_value = strtol (_value_start, &_end_ptr, 10);
-    solver->train_mode = (int) _mode_value;
+    solver->simple_mode = (int) _mode_value;
+    // printf ("6\n");
 
     // 读取use_neurobranch
-    char *_mode_pos_ = strstr (content, "\"读取use_neurobranch\"");
+    char *_mode_pos_ = strstr (content, "\"use_neurobranch\"");
     char *_colon_pos_ = strchr (_mode_pos_, ':');
     char *_value_start_ = _colon_pos_ + 1;
     while (*_value_start_ && isspace (*_value_start_)) {
@@ -869,6 +875,7 @@ void get_mode (kissat *solver) {
     char *_end_ptr_;
     long _mode_value_ = strtol (_value_start_, &_end_ptr_, 10);
     solver->use_neurobranch = (int) _mode_value_;
+    // printf ("7\n");
 
     free (content);
 }
@@ -911,19 +918,25 @@ static int run_application (kissat *solver, int argc, char **argv,
     kissat_section (solver, "solving");
 #endif
     //! 初始化
+    // printf ("初始化1：\n");
     int clause_count = 0;
+    // printf ("初始化2：\n");
     for (all_clauses (C)) {
         C->resident = true;
     }
+    // printf ("初始化3：\n");
     get_mode (solver);
+    // printf ("初始化4：\n");
     solver->decided = 0;
+    // printf ("初始化5：\n");
     get_filename (application.input_path, solver->input_path);
-    system ("touch /tmp/nn_shared");
-    solver->key = ftok ("/tmp/nn_shared", 83);
     if (!solver->use_neurobranch && solver->train_mode) {
         //! 如果不使用neurobranch或处于训练模式就不建共享内存
     } else if (solver->simple_mode == 0) {
         //! 如果使用原始版本neurobranch，并且是apply模式，构建第一种共享内存
+        // printf ("开始创建共享内存\n");
+        system ("touch /tmp/nn_shared");
+        solver->key = ftok ("/tmp/nn_shared", 83);
         solver->shmid =
             shmget (solver->key, sizeof (struct shared_data), 0666 | IPC_CREAT);
         solver->data = (struct shared_data *) shmat (solver->shmid, NULL, 0);
@@ -932,8 +945,11 @@ static int run_application (kissat *solver, int argc, char **argv,
             memset (solver->data, 0, sizeof (struct shared_data));
         }
         solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT);
+        // printf ("共享内存创建成功\n");
     } else if (solver->simple_mode == 1) {
         //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
+        system ("touch /tmp/nn_shared");
+        solver->key = ftok ("/tmp/nn_shared", 83);
         solver->shmid = shmget (solver->key, sizeof (struct shared_data_simp),
                                 0666 | IPC_CREAT);
         solver->data_simp =
@@ -948,6 +964,7 @@ static int run_application (kissat *solver, int argc, char **argv,
     // struct timespec start, end;
     clock_gettime (CLOCK_MONOTONIC, &solver->start);
     solver->timeout = false;
+    // printf ("\nc Start Solving……\n");
     int res = kissat_solve (solver);
     clock_gettime (CLOCK_MONOTONIC, &solver->end);
     long time_ns = (solver->end.tv_sec - solver->start.tv_sec) * 1000000000L +

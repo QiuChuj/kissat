@@ -2,7 +2,7 @@
 
 # 定义Kissat求解器路径和目标目录
 KISSAT_PATH="/home/richard/project/kissat/build/kissat"
-TARGET_DIR="/home/richard/project/SAT_benchmark/SATLIB/uuf50-218"
+TARGET_DIR=$1
 
 # 检查Kissat求解器是否存在
 if [ ! -f "$KISSAT_PATH" ]; then

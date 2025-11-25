@@ -261,17 +261,10 @@ void kissat_write_simple_features (kissat *solver, const char *filename) {
 
 void kissat_write_scores (kissat *solver, const char *filename) {
     FILE *file = fopen (filename, "w");
+    heap *scores = &solver->scores;
     unsigned idx = 0;
-    for (idx = 0; idx < 1000; idx++) {
-        fprintf (file, "%f,%f,%f,%f,%f,%f,%f,%f\n",
-                 (double) solver->appearance_count[idx],
-                 (double) solver->conflict_appearance[idx],
-                 (double) solver->decision_num[idx],
-                 (double) solver->generated_appearance[idx],
-                 (double) solver->LBD_min[idx],
-                 (double) solver->short_clause_appearance[idx],
-                 (double) solver->decision_level[idx],
-                 (double) solver->polarity_distribution[idx]);
+    for (idx = 0; idx < solver->vars; idx++) {
+        fprintf (file, "%f\n", scores->score[idx]);
     }
     fclose (file);
 }
@@ -327,7 +320,8 @@ void get_simp_data (kissat *solver) {
             if (C->lits[l] % 2 == 0)
                 solver->polarity_positive[var]++;
             solver->polarity_distribution[var] =
-                solver->polarity_positive[var] / solver->appearance_count[var];
+                (double) solver->polarity_positive[var] /
+                (double) solver->appearance_count[var];
             //! 4、统计在生成子句中出现的次数
             if (!C->resident)
                 solver->generated_appearance[var]++;
@@ -452,6 +446,7 @@ void apply_neurobranch_simp (kissat *solver) {
 //! 这里是共享内存操作
 
 void kissat_decide (kissat *solver) {
+    // printf ("Dicide Starts\n");
     struct timespec _start, _end;
     clock_gettime (CLOCK_MONOTONIC, &_start);
     START (decide);
@@ -469,53 +464,81 @@ void kissat_decide (kissat *solver) {
     assert (solver->level != INVALID_LEVEL);
 
     //! 加入了模式判断逻辑，自动执行对应代码
+    // printf ("train_mode: %d\n", solver->train_mode);
     solver->decided++;
     if (!solver->use_neurobranch) {
         //! 不使用neurobranch
     } else if (solver->train_mode) {
         //! train
+        get_simp_data (solver);
         if (!solver->simple_mode) {
-            //! 提取原始版本neurobranch训练数据
-            //! 输出当前clauses
-            char filepath[256];
-            snprintf (
-                filepath, sizeof (filepath),
-                "/home/richard/project/neurobranch/dimacs/train/clauses/%s/",
-                solver->input_path);
-            mode_t mode = 0755;
-            mkdir (filepath, mode);
-            snprintf (
-                filepath, sizeof (filepath),
-                "/home/richard/project/neurobranch/dimacs/train/scores/%s/",
-                solver->input_path);
-            mkdir (filepath, mode);
-            char filename[256];
-            snprintf (
-                filename, sizeof (filename),
-                "/home/richard/project/neurobranch/dimacs/train/clauses/%s/"
-                "decision%d.cnf",
-                solver->input_path, solver->decided);
-            kissat_write_cnf (solver, filename);
-            //! 输出当前变量的得分
-            char filename2[256];
-            snprintf (
-                filename2, sizeof (filename2),
-                "/home/richard/project/neurobranch/dimacs/train/scores/%s/"
-                "decision%d.csv",
-                solver->input_path, solver->decided);
-            kissat_write_scores (solver, filename2);
+            if (solver->decided % 20 == 0) {
+                //! 提取原始版本neurobranch训练数据
+                //! 输出当前clauses
+                char filepath[256];
+                snprintf (filepath, sizeof (filepath),
+                          "/home/richard/project/neurobranch_train_data/"
+                          "neurobranch/data/%s/",
+                          solver->input_path);
+                mode_t mode = 0755;
+                mkdir (filepath, mode);
+                char filepath2[256];
+                snprintf (filepath2, sizeof (filepath2),
+                          "/home/richard/project/neurobranch_train_data/"
+                          "neurobranch/label/%s/",
+                          solver->input_path);
+                mkdir (filepath2, mode);
+                char filename[256];
+                snprintf (filename, sizeof (filename), "%sdecision%d.cnf",
+                          filepath, solver->decided);
+                kissat_write_cnf (solver, filename);
+                //! 输出当前变量的得分
+                char filename2[256];
+                snprintf (filename2, sizeof (filename2), "%sdecision%d.csv",
+                          filepath2, solver->decided);
+                kissat_write_simple_features (solver, filename2);
+            }
+        } else {
+            if (solver->decided % 20 == 0) {
+                //! 提取原始版本neurobranch训练数据
+                //! 输出当前clauses
+                char filepath[256];
+                snprintf (filepath, sizeof (filepath),
+                          "/home/richard/project/neurobranch_train_data/"
+                          "neurobranch_simp/data/%s/",
+                          solver->input_path);
+                mode_t mode = 0755;
+                mkdir (filepath, mode);
+                char filepath2[256];
+                snprintf (filepath2, sizeof (filepath2),
+                          "/home/richard/project/neurobranch_train_data/"
+                          "neurobranch_simp/label/%s/",
+                          solver->input_path);
+                mkdir (filepath2, mode);
+                char filename[256];
+                snprintf (filename, sizeof (filename), "%sdecision%d.csv",
+                          filepath, solver->decided);
+                kissat_write_simple_features (solver, filename);
+                //! 输出当前变量的得分
+                char filename2[256];
+                snprintf (filename2, sizeof (filename2), "%sdecision%d.csv",
+                          filepath2, solver->decided);
+                kissat_write_scores (solver, filename2);
+            }
         }
     } else { //! apply
+        get_simp_data (solver);
         if (solver->decided % 10 == 0) {
-            if (solver->neurobranch_mode == 1)
+            if (!solver->simple_mode)
                 apply_neurobranch (solver);
-            if (solver->neurobranch_mode == 2)
+            else
                 apply_neurobranch_simp (solver);
         }
     }
+    // printf ("neurobranch部分执行完毕\n");
 
     const unsigned idx = kissat_next_decision_variable (solver);
-    // printf ("Decided variable: %u\n", idx);
+    printf ("Decided variable: %u\n", idx);
     //! 这里记录一下决策次数
     solver->decision_num[idx]++;
     const value value = kissat_decide_phase (solver, idx);
