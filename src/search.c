@@ -203,7 +203,7 @@ int kissat_search (kissat *solver) {
             //     solver->timeout = true;
             // }
             clause *conflict = kissat_search_propagate (solver);
-            printf ("提取结束\n");
+            // printf ("提取结束\n");
             if (conflict) {
                 //! 提取冲突子句中出现次数
                 int i = 0;

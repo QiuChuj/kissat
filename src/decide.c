@@ -14,6 +14,7 @@
 #include <sys/shm.h>
 #include <sys/stat.h>  // 包含mkdir函数声明
 #include <sys/types.h> // 包含mode_t类型定义
+#include <time.h>
 #include <unistd.h>
 
 static unsigned last_enqueued_unassigned_variable (kissat *solver) {
@@ -471,8 +472,10 @@ void kissat_decide (kissat *solver) {
     } else if (solver->train_mode) {
         //! train
         get_simp_data (solver);
+        srand (time (NULL));
+        int rand_value = rand () % 20;
         if (!solver->simple_mode) {
-            if (solver->decided % 20 == 0) {
+            if (solver->decided % 20 == rand_value) {
                 //! 提取原始版本neurobranch训练数据
                 //! 输出当前clauses
                 char filepath[256];
@@ -499,7 +502,7 @@ void kissat_decide (kissat *solver) {
                 kissat_write_simple_features (solver, filename2);
             }
         } else {
-            if (solver->decided % 20 == 0) {
+            if (solver->decided % 20 == rand_value) {
                 //! 提取原始版本neurobranch训练数据
                 //! 输出当前clauses
                 char filepath[256];
@@ -528,7 +531,9 @@ void kissat_decide (kissat *solver) {
         }
     } else { //! apply
         get_simp_data (solver);
-        if (solver->decided % 10 == 0) {
+        srand (time (NULL));
+        int rand_value = rand () % 10;
+        if (solver->decided % 10 == rand_value) {
             if (!solver->simple_mode)
                 apply_neurobranch (solver);
             else
