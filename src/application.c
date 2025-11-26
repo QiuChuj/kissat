@@ -973,12 +973,14 @@ static int run_application (kissat *solver, int argc, char **argv,
     double time_ms = time_ns / 1000000.0;
     double time_ms1 = time_ns1 / 1000000.0;
     double time_ms2 = time_ms - time_ms1;
-    if (!solver->train_mode) {
-        if (!solver->simple_mode)
-            shmdt (solver->data);
-        else
-            shmdt (solver->data_simp);
-        shmctl (solver->shmid, IPC_RMID, NULL);
+    if (solver->use_neurobranch) {
+        if (!solver->train_mode) {
+            if (!solver->simple_mode)
+                shmdt (solver->data);
+            else
+                shmdt (solver->data_simp);
+            shmctl (solver->shmid, IPC_RMID, NULL);
+        }
     }
 
     // FILE *fp = fopen ("/home/richard/project/kissat/time.csv", "a+");

@@ -267,6 +267,11 @@ void kissat_write_scores (kissat *solver, const char *filename) {
     for (idx = 0; idx < solver->vars; idx++) {
         fprintf (file, "%f\n", scores->score[idx]);
     }
+    double padding_value = 0.0;
+    while (idx < 1000) {
+        fprintf (file, "%f\n", padding_value);
+        idx++;
+    }
     fclose (file);
 }
 
