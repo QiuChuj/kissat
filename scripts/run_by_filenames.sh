@@ -87,11 +87,11 @@ find "$TARGET_DIR" -type f -name "*.cnf" -print0 | while IFS= read -r -d '' cnf_
     # 运行求解器并捕获退出状态
     if "$KISSAT_PATH" "$cnf_file" >> "$cnf_log" 2>&1; then
         exit_code=0
-        status="成功"
+        status="SAT"
         ((SOLVED_FILES++))
     else
         exit_code=$?
-        status="失败"
+        status="UNSAT"
         ((FAILED_FILES++))
     fi
     

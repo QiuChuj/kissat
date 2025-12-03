@@ -1,5 +1,5 @@
 {
     "use_neurobranch": 0,
-    "train_mode": 1,
-    "simple_mode": 1
+    "train_mode": 0,
+    "simple_mode": 0
 }

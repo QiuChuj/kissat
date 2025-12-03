@@ -776,7 +776,7 @@ void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             unsigned long long decisions,
                             unsigned long long conflicts) {
     const char *csv_filename =
-        "/home/richard/project/kissat/neurobranch_simp_results.csv";
+        "/home/richard/project/kissat/kissat_results.csv";
     FILE *file = fopen (csv_filename, "a");
     if (file == NULL) {
         perror ("Error opening results CSV file");
@@ -930,8 +930,37 @@ static int run_application (kissat *solver, int argc, char **argv,
     solver->decided = 0;
     // printf ("初始化5：\n");
     get_filename (application.input_path, solver->input_path);
-    if (!solver->use_neurobranch && solver->train_mode) {
-        //! 如果不使用neurobranch或处于训练模式就不建共享内存
+    if (!solver->use_neurobranch) {
+        //! 如果不使用neurobranch就不建共享内存
+    } else if (solver->train_mode) {
+        //! 如果处于训练模式，初始化训练数据和标签的存储路径
+        srand (time (NULL));
+        solver->rand_value = rand () % 10;
+        if (solver->simple_mode) {
+            snprintf (solver->data_path, sizeof (solver->data_path),
+                      "/home/richard/project/neurobranch_train_data/"
+                      "neurobranch_simp/data/%s/",
+                      solver->input_path);
+            mode_t mode = 0755;
+            mkdir (solver->data_path, mode);
+            snprintf (solver->label_path, sizeof (solver->label_path),
+                      "/home/richard/project/neurobranch_train_data/"
+                      "neurobranch_simp/label/%s/",
+                      solver->input_path);
+            mkdir (solver->label_path, mode);
+        } else {
+            snprintf (solver->data_path, sizeof (solver->data_path),
+                      "/home/richard/project/neurobranch_train_data/"
+                      "neurobranch/data/%s/",
+                      solver->input_path);
+            mode_t mode = 0755;
+            mkdir (solver->data_path, mode);
+            snprintf (solver->label_path, sizeof (solver->label_path),
+                      "/home/richard/project/neurobranch_train_data/"
+                      "neurobranch/label/%s/",
+                      solver->input_path);
+            mkdir (solver->label_path, mode);
+        }
     } else if (solver->simple_mode == 0) {
         //! 如果使用原始版本neurobranch，并且是apply模式，构建第一种共享内存
         // printf ("开始创建共享内存\n");

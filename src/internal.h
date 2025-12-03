@@ -93,8 +93,10 @@ struct shared_data {
 
 //! 定义neurobranch_simp数据结构
 struct shared_data_simp {
-    double features[8][1000];
+    double features[9][1000];
     double result[1000];
+    // double reward;
+    // bool used[1000];
     int ready;
     unsigned n_vars;
     unsigned n_clauses;
@@ -139,7 +141,10 @@ struct kissat {
     bool timeout;
     //! 输入路径
     char input_path[256];
+    char data_path[256];
+    char label_path[256];
     //! neurobranch模式变量
+    int rand_value;
     int use_neurobranch;
     int train_mode;
     int simple_mode;
@@ -148,7 +153,7 @@ struct kissat {
     struct shared_data *data;
     struct shared_data_simp *data_simp;
     int semid;
-    //! simple版的八个特征向量，已按顺序排列好
+    //! simple版的八个特征向量
     int appearance_count[1000];
     int conflict_appearance[1000];
     int decision_num[1000];
@@ -158,6 +163,7 @@ struct kissat {
     unsigned decision_level[1000];
     double polarity_distribution[1000];
     int polarity_positive[1000];
+    int in_trail[1000];
 
     ints export;
     ints units;
@@ -191,6 +197,7 @@ struct kissat {
     unsigned level;
     frames frames;
 
+    //! 这里是所有已经赋值的文字的轨迹。
     unsigned_array trail;
     unsigned *propagate;
 
