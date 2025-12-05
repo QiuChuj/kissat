@@ -429,7 +429,7 @@ void apply_neurobranch_simp (kissat *solver) {
     // 准备数据
     int l;
     for (l = 0; l < 1000; l++) {
-        //! 八个特征向量填入共享内存
+        //! 九个特征向量填入共享内存
         solver->data_simp->features[0][l] =
             (double) solver->appearance_count[l];
         solver->data_simp->features[1][l] =
@@ -447,7 +447,8 @@ void apply_neurobranch_simp (kissat *solver) {
     }
 
     solver->data_simp->ready = 1;
-    // solver->data_simp->reward = 0.0; // 初始化reward
+    sem_op (solver->semid, 1);
+    // printf ("C端数据已发送，等待Python处理...\n");
     // 等待Python处理
     while (solver->data_simp->ready != 2) {
         usleep (0.1);
@@ -455,6 +456,7 @@ void apply_neurobranch_simp (kissat *solver) {
 
     // 读取结果并置换求解器中的vsids分数
     sem_op (solver->semid, -1);
+    // printf ("读取神经网络输出结果中...\n");
     double *nn_output = solver->data_simp->result;
     heap *score_output = &solver->scores;
     unsigned idx = 0;
@@ -524,12 +526,17 @@ void kissat_decide (kissat *solver) {
         }
     } else { //! apply
         if (solver->decided % 10 == solver->rand_value) {
+            // printf ("Applying neurobranch at decision %d\n",
+            // solver->decided);
             if (!solver->simple_mode)
                 apply_neurobranch (solver);
             else {
+                // printf ("Getting simp data...\n");
                 get_simp_data (solver);
+                // printf ("Applying simp...\n");
                 apply_neurobranch_simp (solver);
             }
+            // printf ("neurobranch applied.\n");
         }
     }
     // printf ("neurobranch部分执行完毕\n");

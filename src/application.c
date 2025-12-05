@@ -776,7 +776,7 @@ void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             unsigned long long decisions,
                             unsigned long long conflicts) {
     const char *csv_filename =
-        "/home/richard/project/kissat/kissat_results.csv";
+        "/home/richard/project/kissat/neurobranch_simp_results.csv";
     FILE *file = fopen (csv_filename, "a");
     if (file == NULL) {
         perror ("Error opening results CSV file");
@@ -969,10 +969,6 @@ static int run_application (kissat *solver, int argc, char **argv,
         solver->shmid =
             shmget (solver->key, sizeof (struct shared_data), 0666 | IPC_CREAT);
         solver->data = (struct shared_data *) shmat (solver->shmid, NULL, 0);
-        if (solver->data != (void *) -1) {
-            // 如果是新创建的，或者需要重置，就进行初始化
-            memset (solver->data, 0, sizeof (struct shared_data));
-        }
         solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT);
         // printf ("共享内存创建成功\n");
     } else if (solver->simple_mode == 1) {
@@ -981,13 +977,64 @@ static int run_application (kissat *solver, int argc, char **argv,
         solver->key = ftok ("/tmp/nn_shared", 83);
         solver->shmid = shmget (solver->key, sizeof (struct shared_data_simp),
                                 0666 | IPC_CREAT);
+        //! 初始化solver->data_simp
         solver->data_simp =
             (struct shared_data_simp *) shmat (solver->shmid, NULL, 0);
-        if (solver->data_simp != (void *) -1) {
-            // 如果是新创建的，或者需要重置，就进行初始化
-            memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
-        }
+        // memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
         solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT);
+
+        // // 保证用于 ftok 的文件存在
+        // system ("touch /tmp/nn_shared");
+
+        // solver->key = ftok ("/tmp/nn_shared", 83);
+        // if (solver->key == -1) {
+        //     perror ("ftok");
+        //     exit (1);
+        // }
+
+        // /* 1) 先检查是否已有同一个 key 的共享内存段，如果有就删掉 */
+        // int old_shmid =
+        //     shmget (solver->key, 0, 0666); // size=0 表示只想拿到已有段
+        // if (old_shmid != -1) {
+        //     if (shmctl (old_shmid, IPC_RMID, NULL) == -1) {
+        //         perror ("shmctl(IPC_RMID)");
+        //         // 看你需求，可选择 exit(1) 或者继续
+        //     }
+        // }
+
+        // /* 2) 创建新的共享内存段 */
+        // solver->shmid = shmget (solver->key, sizeof (struct
+        // shared_data_simp),
+        //                         0666 | IPC_CREAT | IPC_EXCL);
+        // if (solver->shmid == -1) {
+        //     perror ("shmget");
+        //     exit (1);
+        // }
+
+        // /* 3) 连接共享内存 */
+        // solver->data_simp =
+        //     (struct shared_data_simp *) shmat (solver->shmid, NULL, 0);
+        // if (solver->data_simp == (void *) -1) {
+        //     perror ("shmat");
+        //     exit (1);
+        // }
+
+        // /* 4) 初始化共享内存（注意：不要再 malloc 覆盖指针了） */
+        // memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
+
+        // /* 5) 信号量同理，如果也想重建，可以先删旧的再建新的 */
+        // int old_semid = semget (solver->key, 1, 0666);
+        // if (old_semid != -1) {
+        //     if (semctl (old_semid, 0, IPC_RMID) == -1) {
+        //         perror ("semctl(IPC_RMID)");
+        //     }
+        // }
+
+        // solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT | IPC_EXCL);
+        // if (solver->semid == -1) {
+        //     perror ("semget");
+        //     exit (1);
+        // }
     }
     //! 计时，写入time.csv
     // struct timespec start, end;

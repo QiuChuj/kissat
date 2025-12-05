@@ -47,6 +47,12 @@ University of Helsinki 2024
 
 See [NEWS.md](NEWS.md) for feature updates.
 
-richard_branch使用说明：
+### richard_branch使用说明：
 
 本人重新构建的kissat设置了三个模式变量，位于config/config.json中。其中use_neurobranch决定是否使用neurobranch；train_mode决定是否使用训练模式；simple_mode决定是否使用neurobranch_simp（仅在use_neurobranch==1条件下生效）
+
+**scripts中的脚本使用方法：**
+- **run_SATLIB_data.sh**：使用原生kissat求解某一个二级文件夹下的所有SAT问题，调用了**run_by_filenames.sh**
+- **kissat_neurobranch_run_all.sh**：使用neurobranch求解某一个二级文件夹下的所有SAT问题，调用了**kissat_apply_neurobranch.sh**
+- **kissat_neurobranch_simp_run_all.sh**：使用neurobranch_simp求解某一个二级文件夹下的所有SAT问题，调用了**kissat_apply_neurobranch_simp.sh**
+- **kissat_neurobranch_reinenforce_run_all.sh**：使用neurobranch_reinenforce求解某一个二级文件夹下的所有SAT问题，调用了**kissat_apply_neurobranch_reinenforce.sh**
