@@ -12,6 +12,7 @@
 #include "resources.h"
 #include "witness.h"
 
+#include <errno.h>
 #include <float.h> // 用于 DBL_MIN 常量
 #include <inttypes.h>
 #include <stdio.h>
@@ -964,8 +965,8 @@ static int run_application (kissat *solver, int argc, char **argv,
     } else if (solver->simple_mode == 0) {
         //! 如果使用原始版本neurobranch，并且是apply模式，构建第一种共享内存
         // printf ("开始创建共享内存\n");
-        system ("touch /tmp/nn_shared");
-        solver->key = ftok ("/tmp/nn_shared", 83);
+        system ("touch /tmp/neurobranch");
+        solver->key = ftok ("/tmp/neurobranch", 83);
         solver->shmid =
             shmget (solver->key, sizeof (struct shared_data), 0666 | IPC_CREAT);
         solver->data = (struct shared_data *) shmat (solver->shmid, NULL, 0);
@@ -973,68 +974,38 @@ static int run_application (kissat *solver, int argc, char **argv,
         // printf ("共享内存创建成功\n");
     } else if (solver->simple_mode == 1) {
         //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
-        system ("touch /tmp/nn_shared");
-        solver->key = ftok ("/tmp/nn_shared", 83);
+        system ("touch /tmp/neurobranch_simp");
+
+        solver->key = ftok ("/tmp/neurobranch_simp", 84);
+        if (solver->key == (key_t) -1) {
+            perror ("ftok(/tmp/neurobranch_simp, 84) failed");
+            exit (1);
+        }
+
         solver->shmid = shmget (solver->key, sizeof (struct shared_data_simp),
-                                0666 | IPC_CREAT);
-        //! 初始化solver->data_simp
-        solver->data_simp =
-            (struct shared_data_simp *) shmat (solver->shmid, NULL, 0);
-        // memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
+                                IPC_CREAT | 0666);
+        if (solver->shmid == -1) {
+            perror ("shmget(shared_data_simp) failed");
+            exit (1);
+        }
+
+        solver->data_simp = shmat (solver->shmid, NULL, 0);
+        if (solver->data_simp == (void *) -1) {
+            perror ("shmat(shared_data_simp) failed");
+            fprintf (stderr, "errno = %d (%s)\n", errno, strerror (errno));
+            exit (1);
+        }
+
+        printf ("data_simp pointer = %p\n", (void *) solver->data_simp);
+        fflush (stdout);
+
+        memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
+
         solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT);
-
-        // // 保证用于 ftok 的文件存在
-        // system ("touch /tmp/nn_shared");
-
-        // solver->key = ftok ("/tmp/nn_shared", 83);
-        // if (solver->key == -1) {
-        //     perror ("ftok");
-        //     exit (1);
-        // }
-
-        // /* 1) 先检查是否已有同一个 key 的共享内存段，如果有就删掉 */
-        // int old_shmid =
-        //     shmget (solver->key, 0, 0666); // size=0 表示只想拿到已有段
-        // if (old_shmid != -1) {
-        //     if (shmctl (old_shmid, IPC_RMID, NULL) == -1) {
-        //         perror ("shmctl(IPC_RMID)");
-        //         // 看你需求，可选择 exit(1) 或者继续
-        //     }
-        // }
-
-        // /* 2) 创建新的共享内存段 */
-        // solver->shmid = shmget (solver->key, sizeof (struct
-        // shared_data_simp),
-        //                         0666 | IPC_CREAT | IPC_EXCL);
-        // if (solver->shmid == -1) {
-        //     perror ("shmget");
-        //     exit (1);
-        // }
-
-        // /* 3) 连接共享内存 */
-        // solver->data_simp =
-        //     (struct shared_data_simp *) shmat (solver->shmid, NULL, 0);
-        // if (solver->data_simp == (void *) -1) {
-        //     perror ("shmat");
-        //     exit (1);
-        // }
-
-        // /* 4) 初始化共享内存（注意：不要再 malloc 覆盖指针了） */
-        // memset (solver->data_simp, 0, sizeof (struct shared_data_simp));
-
-        // /* 5) 信号量同理，如果也想重建，可以先删旧的再建新的 */
-        // int old_semid = semget (solver->key, 1, 0666);
-        // if (old_semid != -1) {
-        //     if (semctl (old_semid, 0, IPC_RMID) == -1) {
-        //         perror ("semctl(IPC_RMID)");
-        //     }
-        // }
-
-        // solver->semid = semget (solver->key, 1, 0666 | IPC_CREAT | IPC_EXCL);
-        // if (solver->semid == -1) {
-        //     perror ("semget");
-        //     exit (1);
-        // }
+        if (solver->semid == -1) {
+            perror ("semget failed");
+            exit (1);
+        }
     }
     //! 计时，写入time.csv
     // struct timespec start, end;
