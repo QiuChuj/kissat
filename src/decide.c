@@ -423,11 +423,12 @@ void apply_neurobranch_simp (kissat *solver) {
     // 使用neurobranch_simp
     semctl (solver->semid, 0, SETVAL, 1);
 
-    // printf ("C程序开始通信...\n");
+    printf ("C程序开始通信...\n");
     sem_op (solver->semid, -1);
 
     // 准备数据
     int l;
+    printf ("Preparing features for neurobranch_simp...\n");
     for (l = 0; l < 1000; l++) {
         //! 九个特征向量填入共享内存
         solver->data_simp->features[0][l] =
@@ -445,10 +446,11 @@ void apply_neurobranch_simp (kissat *solver) {
             (double) solver->polarity_distribution[l];
         solver->data_simp->features[8][l] = (double) solver->in_trail[l];
     }
+    printf ("Features prepared for neurobranch_simp.\n");
 
     solver->data_simp->ready = 1;
     sem_op (solver->semid, 1);
-    // printf ("C端数据已发送，等待Python处理...\n");
+    printf ("C端数据已发送，等待Python处理...\n");
     // 等待Python处理
     while (solver->data_simp->ready != 2) {
         usleep (0.1);
@@ -456,14 +458,16 @@ void apply_neurobranch_simp (kissat *solver) {
 
     // 读取结果并置换求解器中的vsids分数
     sem_op (solver->semid, -1);
-    // printf ("读取神经网络输出结果中...\n");
+    printf ("读取神经网络输出结果中...\n");
     double *nn_output = solver->data_simp->result;
     heap *score_output = &solver->scores;
     unsigned idx = 0;
     // 用神经网络计算出的分数代替原本vsids分数
+    printf ("Updating scores...\n");
     for (idx = 0; idx < solver->vars; idx++) {
         score_output->score[idx] = nn_output[idx];
     }
+    printf ("Scores updated.\n");
     solver->data->ready = 0;
     sem_op (solver->semid, 1);
 }
@@ -539,7 +543,7 @@ void kissat_decide (kissat *solver) {
             // printf ("neurobranch applied.\n");
         }
     }
-    // printf ("neurobranch部分执行完毕\n");
+    printf ("neurobranch部分执行完毕\n");
 
     const unsigned idx = kissat_next_decision_variable (solver);
     printf ("Decided variable: %u\n", idx);
