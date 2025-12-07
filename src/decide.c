@@ -342,6 +342,7 @@ void get_simp_data (kissat *solver) {
         C->LBD = countDistinctExceptZeroSorted (decision_levels, l);
         clause_count++;
     }
+    solver->clause_count = clause_count;
     for (all_clauses (C)) {
         for (l = 0; l < C->size; l++) {
             int var = C->lits[l] / 2;
@@ -446,6 +447,8 @@ void apply_neurobranch_simp (kissat *solver) {
             (double) solver->polarity_distribution[l];
         solver->data_simp->features[8][l] = (double) solver->in_trail[l];
     }
+    solver->data_simp->n_vars = solver->vars;
+    solver->data_simp->n_clauses = solver->clause_count;
     printf ("Features prepared for neurobranch_simp.\n");
 
     solver->data_simp->ready = 1;
@@ -468,7 +471,7 @@ void apply_neurobranch_simp (kissat *solver) {
         score_output->score[idx] = nn_output[idx];
     }
     printf ("Scores updated.\n");
-    solver->data->ready = 0;
+    solver->data_simp->ready = 0;
     sem_op (solver->semid, 1);
 }
 //! 这里是共享内存操作
@@ -530,17 +533,16 @@ void kissat_decide (kissat *solver) {
         }
     } else { //! apply
         if (solver->decided % 10 == solver->rand_value) {
-            // printf ("Applying neurobranch at decision %d\n",
-            // solver->decided);
+            printf ("Applying neurobranch at decision %d\n", solver->decided);
             if (!solver->simple_mode)
                 apply_neurobranch (solver);
             else {
-                // printf ("Getting simp data...\n");
+                printf ("Getting simp data...\n");
                 get_simp_data (solver);
-                // printf ("Applying simp...\n");
+                printf ("Applying simp...\n");
                 apply_neurobranch_simp (solver);
             }
-            // printf ("neurobranch applied.\n");
+            printf ("neurobranch applied.\n");
         }
     }
     printf ("neurobranch部分执行完毕\n");

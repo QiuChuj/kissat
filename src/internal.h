@@ -144,6 +144,7 @@ struct kissat {
     char data_path[256];
     char label_path[256];
     //! neurobranch模式变量
+    int clause_count;
     int rand_value;
     int use_neurobranch;
     int train_mode;

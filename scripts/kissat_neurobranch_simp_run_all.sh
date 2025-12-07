@@ -8,8 +8,8 @@ ROOT_DIR="/home/richard/project/SAT_benchmark/SATLIB"
 PROCESSED_CSV="/home/richard/project/kissat/neurobranch_simp_results.csv"
 # 定义溢出文件夹
 OVERFLOW_DIR="/home/richard/project/SAT_benchmark/overflow"
-# 定义随机选择比例（50%）
-SELECT_RATIO=0.5
+# 定义随机选择比例
+SELECT_RATIO=1
 
 # 检查求解器脚本是否存在
 if [ ! -f "$SOLVER_SCRIPT" ]; then
