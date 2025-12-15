@@ -1,76 +1,61 @@
 #!/bin/bash
+# 遍历 /home/richard/project/SAT_benchmark/SATLIB 下所有 .cnf 文件
+# 对未在 kissat_results.csv 第一列中出现过的文件运行 kissat
 
-# =================配置区域=================
-# 原始求解脚本的绝对路径
-RUNNER_SCRIPT="/home/richard/project/kissat/scripts/run_by_filenames.sh"
+KISSAT_BIN="/home/richard/project/kissat/build/kissat"
+BENCH_ROOT="/home/richard/project/SAT_benchmark/SATLIB"
+RESULTS_CSV="/home/richard/project/kissat/kissat_results.csv"
 
-# SATLIB Benchmark 的根目录
-BENCHMARK_ROOT="/home/richard/project/SAT_benchmark/SATLIB"
-# =========================================
+# 使用 bash 关联数组记录已求解的实例
+declare -A SOLVED
 
-# 1. 检查原始脚本是否存在
-if [ ! -f "$RUNNER_SCRIPT" ]; then
-    echo "错误: 找不到求解脚本: $RUNNER_SCRIPT"
-    exit 1
+# 1. 读取已有的结果 CSV，把第一列加载到 SOLVED 中
+if [[ -f "$RESULTS_CSV" ]]; then
+    echo "从 $RESULTS_CSV 读取已求解问题列表..."
+
+    # 逐行读取 CSV
+    # IFS=, 以逗号为分隔符，只取第一列 fname
+    while IFS=, read -r fname _; do
+        # 跳过空行
+        [[ -z "$fname" ]] && continue
+        # 如果有表头，按需跳过（可根据你自己的表头名称调整）
+        if [[ "$fname" == "filename" || "$fname" == "cnf" ]]; then
+            continue
+        fi
+        SOLVED["$fname"]=1
+    done < "$RESULTS_CSV"
+else
+    echo "结果文件 $RESULTS_CSV 不存在，视为当前没有已求解实例。"
 fi
 
-# 确保原始脚本有执行权限
-chmod +x "$RUNNER_SCRIPT"
+echo "已记录的已求解实例数量: ${#SOLVED[@]}"
 
-# 2. 检查Benchmark目录是否存在
-if [ ! -d "$BENCHMARK_ROOT" ]; then
-    echo "错误: 找不到Benchmark目录: $BENCHMARK_ROOT"
-    exit 1
-fi
+# 2. 递归遍历 SATLIB 目录下所有 .cnf 文件
+find "$BENCH_ROOT" -type f -name "*.cnf" | while IFS= read -r cnf_path; do
+    # 绝对路径
+    abs_path="$cnf_path"
+    # 仅文件名（不含路径）
+    base_name="$(basename "$cnf_path")"
 
-echo "=========================================="
-echo "      开始全量 Benchmark 测试"
-echo "=========================================="
-echo "求解脚本: $RUNNER_SCRIPT"
-echo "数据根目录: $BENCHMARK_ROOT"
-echo "开始时间: $(date)"
-echo "=========================================="
-echo ""
-
-# 统计总耗时
-start_total_time=$(date +%s)
-
-# 3. 遍历 SATLIB 下的一级子目录
-# 使用 find maxdepth 1 确保只列出第一层子文件夹（例如 uf20-91, uf50-218）
-# sort 确保按字母顺序执行
-find "$BENCHMARK_ROOT" -mindepth 1 -maxdepth 1 -type d | sort | while read -r benchmark_dir; do
-    
-    dir_name=$(basename "$benchmark_dir")
-    
-    echo ">>>>>>>>> 正在处理 Benchmark 集: $dir_name <<<<<<<<<"
-    echo "路径: $benchmark_dir"
-    
-    # 4. 调用原始脚本
-    # 将当前的子目录作为参数传递给 run_by_filenames.sh
-    bash "$RUNNER_SCRIPT" "$benchmark_dir"
-    
-    # 捕获原始脚本的退出状态（可选）
-    exit_code=$?
-    
-    if [ $exit_code -ne 0 ]; then
-        echo "警告: Benchmark 集 $dir_name 处理过程中出现非零退出代码。"
+    # 3. 检查是否已经在 CSV 中出现过
+    #    既支持 CSV 里存的是绝对路径，也支持只存文件名
+    if [[ -n "${SOLVED["$abs_path"]+x}" || -n "${SOLVED["$base_name"]+x}" ]]; then
+        echo "跳过已求解: $cnf_path"
+        continue
     fi
-    
-    echo ""
-    echo ">>>>>>>>> 完成 Benchmark 集: $dir_name <<<<<<<<<"
-    echo "--------------------------------------------------"
-    echo ""
-    
-    # 可选：这里可以加一个 sleep 1 让系统稍微缓冲一下，防止日志写入冲突
-    sleep 1
 
+    echo "求解: $cnf_path"
+    # 4. 调用 kissat 进行求解
+    "$KISSAT_BIN" "$cnf_path"
+
+    # 如果你希望在每次求解后立即往 CSV 里追加一行，
+    # 可以在这里解析 kissat 输出追加相应信息。
+    # 比如至少把文件名记下来（其他列请根据你自己的格式调整）：
+    #
+    # echo "$base_name" >> "$RESULTS_CSV"
+    #
+    # 或者：
+    # echo "$abs_path" >> "$RESULTS_CSV"
+    #
+    # 如果 CSV 有更多列（时间、解的状态等），需要在这里自己解析 kissat 输出，拼成一行。
 done
-
-end_total_time=$(date +%s)
-total_duration=$((end_total_time - start_total_time))
-
-echo "=========================================="
-echo "所有 Benchmark 处理完毕！"
-echo "总耗时: ${total_duration} 秒"
-echo "日志文件已保存在 /home/richard/project/kissat/logs/ 下各自的时间戳文件夹中"
-echo "=========================================="

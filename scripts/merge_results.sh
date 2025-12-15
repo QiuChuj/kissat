@@ -2,7 +2,7 @@
 
 # 定义输入和输出文件路径
 KISSAT_CSV="/home/richard/project/kissat/kissat_results.csv"
-NEUROBRANCH_CSV="/home/richard/project/kissat/neurobranch_results.csv"
+NEUROBRANCH_CSV="/home/richard/project/kissat/neurobranch_simp_results.csv"
 MERGED_CSV="/home/richard/project/kissat/merge_results.csv"
 
 # 检查输入文件是否存在

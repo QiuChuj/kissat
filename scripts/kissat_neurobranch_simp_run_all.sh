@@ -34,11 +34,11 @@ echo
 # 遍历所有子目录下的 .cnf 文件
 find "$SAT_ROOT" -type f -name '*.cnf' -print0 | while IFS= read -r -d '' cnf_file; do
   if [[ -f "$RESULTS_CSV" ]]; then
-  if awk -F',' -v name="$cnf_file" '$1 == name {found=1; exit} END {exit !found}' "$RESULTS_CSV"; then
-    echo "跳过已求解文件: $cnf_file"
-    continue
+    if awk -F',' -v name="$cnf_file" '$1 == name {found=1; exit} END {exit !found}' "$RESULTS_CSV"; then
+      echo "跳过已求解文件: $cnf_file"
+      continue
+    fi
   fi
-fi
 
   echo "---------------------------------------------"
   echo "开始求解文件: $cnf_file"
