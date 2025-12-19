@@ -777,7 +777,7 @@ void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             unsigned long long decisions,
                             unsigned long long conflicts) {
     const char *csv_filename =
-        "/home/richard/project/kissat/neurobranch_simp_results.csv";
+        "/home/richard/project/kissat/kissat_results.csv";
     FILE *file = fopen (csv_filename, "a");
     if (file == NULL) {
         perror ("Error opening results CSV file");
