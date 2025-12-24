@@ -18,6 +18,7 @@
 #include "kissat.h"
 #include "literal.h"
 #include "mode.h"
+#include "neuro_const.h"
 #include "options.h"
 #include "phases.h"
 #include "profile.h"
@@ -84,8 +85,8 @@ struct kitten;
 
 //! 定义neurobranch数据结构
 struct shared_data {
-    int features[2][20000];
-    double result[500];
+    int features[FULL_FEATURES][FULL_PAIRS];
+    double result[FULL_OUTPUT];
     int ready;
     unsigned n_vars;
     unsigned n_clauses;
@@ -93,10 +94,10 @@ struct shared_data {
 
 //! 定义neurobranch_simp数据结构
 struct shared_data_simp {
-    double features[9][1000];
-    double result[1000];
+    double features[SIMP_FEATURES][SIMP_VARS];
+    double result[SIMP_VARS];
     // double reward;
-    // bool used[1000];
+    // bool used[SIMP_VARS];
     int ready;
     unsigned n_vars;
     unsigned n_clauses;
@@ -155,16 +156,16 @@ struct kissat {
     struct shared_data_simp *data_simp;
     int semid;
     //! simple版的八个特征向量
-    int appearance_count[1000];
-    int conflict_appearance[1000];
-    int decision_num[1000];
-    int generated_appearance[1000];
-    int LBD_min[1000];
-    int short_clause_appearance[1000];
-    unsigned decision_level[1000];
-    double polarity_distribution[1000];
-    int polarity_positive[1000];
-    int in_trail[1000];
+    int appearance_count[SIMP_VARS];
+    int conflict_appearance[SIMP_VARS];
+    int decision_num[SIMP_VARS];
+    int generated_appearance[SIMP_VARS];
+    int LBD_min[SIMP_VARS];
+    int short_clause_appearance[SIMP_VARS];
+    unsigned decision_level[SIMP_VARS];
+    double polarity_distribution[SIMP_VARS];
+    int polarity_positive[SIMP_VARS];
+    int in_trail[SIMP_VARS];
 
     ints export;
     ints units;

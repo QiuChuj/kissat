@@ -775,9 +775,16 @@ static void print_limits (application *application) {
 void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             double time_ms1, double time_ms2,
                             unsigned long long decisions,
-                            unsigned long long conflicts) {
-    const char *csv_filename =
-        "/home/richard/project/kissat/kissat_results.csv";
+                            unsigned long long conflicts, int mode) {
+    const char *csv_filename = NULL;
+    if (mode == 1) {
+        csv_filename = "/home/richard/project/kissat/neurobranch_results.csv";
+    } else if (mode == 2) {
+        csv_filename =
+            "/home/richard/project/kissat/neurobranch_simp_results.csv";
+    } else {
+        csv_filename = "/home/richard/project/kissat/kissat_results.csv";
+    }
     FILE *file = fopen (csv_filename, "a");
     if (file == NULL) {
         perror ("Error opening results CSV file");
@@ -931,6 +938,7 @@ static int run_application (kissat *solver, int argc, char **argv,
     solver->decided = 0;
     // printf ("初始化5：\n");
     get_filename (application.input_path, solver->input_path);
+    int mode = 0;
     if (!solver->use_neurobranch) {
         //! 如果不使用neurobranch就不建共享内存
     } else if (solver->train_mode) {
@@ -964,6 +972,7 @@ static int run_application (kissat *solver, int argc, char **argv,
         }
     } else if (solver->simple_mode == 0) {
         //! 如果使用原始版本neurobranch，并且是apply模式，构建第一种共享内存
+        mode = 1;
         // printf ("开始创建共享内存\n");
         system ("touch /tmp/neurobranch");
         solver->key = ftok ("/tmp/neurobranch", 83);
@@ -974,6 +983,7 @@ static int run_application (kissat *solver, int argc, char **argv,
         // printf ("共享内存创建成功\n");
     } else if (solver->simple_mode == 1) {
         //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
+        mode = 2;
         system ("touch /tmp/neurobranch_simp");
 
         solver->key = ftok ("/tmp/neurobranch_simp", 84);
@@ -1050,7 +1060,7 @@ static int run_application (kissat *solver, int argc, char **argv,
 
     log_solver_statistics (application.input_path, res, time_ms, time_ms1,
                            time_ms2, solver->statistics.decisions,
-                           solver->statistics.conflicts);
+                           solver->statistics.conflicts, mode);
 
 #ifndef NPROOFS
     close_proof (&application);

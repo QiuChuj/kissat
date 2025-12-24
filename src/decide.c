@@ -3,6 +3,7 @@
 #include "inlineframes.h"
 #include "inlineheap.h"
 #include "inlinequeue.h"
+#include "neuro_const.h"
 #include "print.h"
 
 #include <float.h> // 用于 DBL_MIN 常量
@@ -243,36 +244,103 @@ void kissat_write_cnf (kissat *solver, const char *filename) {
     fclose (file);
 }
 
+// void kissat_write_simple_features (kissat *solver, const char *filename) {
+//     FILE *file = fopen (filename, "w");
+//     unsigned idx = 0;
+//     for (idx = 0; idx < SIMP_VARS; idx++) {
+//         fprintf (file, "%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
+//                  (double) solver->appearance_count[idx],
+//                  (double) solver->conflict_appearance[idx],
+//                  (double) solver->decision_num[idx],
+//                  (double) solver->generated_appearance[idx],
+//                  (double) solver->LBD_min[idx],
+//                  (double) solver->short_clause_appearance[idx],
+//                  (double) solver->decision_level[idx],
+//                  (double) solver->polarity_distribution[idx],
+//                  (double) solver->in_trail[idx]);
+//     }
+//     fclose (file);
+// }
+
+// void kissat_write_scores (kissat *solver, const char *filename) {
+//     FILE *file = fopen (filename, "w");
+//     heap *scores = &solver->scores;
+//     unsigned idx = 0;
+//     for (idx = 0; idx < solver->vars; idx++) {
+//         fprintf (file, "%f\n", scores->score[idx]);
+//     }
+//     double padding_value = 0.0;
+//     while (idx < SIMP_VARS) {
+//         fprintf (file, "%f\n", padding_value);
+//         idx++;
+//     }
+//     fclose (file);
+// }
+
 void kissat_write_simple_features (kissat *solver, const char *filename) {
-    FILE *file = fopen (filename, "w");
-    unsigned idx = 0;
-    for (idx = 0; idx < 1000; idx++) {
-        fprintf (file, "%f,%f,%f,%f,%f,%f,%f,%f,%f\n",
-                 (double) solver->appearance_count[idx],
-                 (double) solver->conflict_appearance[idx],
-                 (double) solver->decision_num[idx],
-                 (double) solver->generated_appearance[idx],
-                 (double) solver->LBD_min[idx],
-                 (double) solver->short_clause_appearance[idx],
-                 (double) solver->decision_level[idx],
-                 (double) solver->polarity_distribution[idx],
-                 (double) solver->in_trail[idx]);
+    FILE *file = fopen (filename, "wb");
+    if (!file) {
+        perror ("fopen in kissat_write_simple_features_bin");
+        return;
     }
+
+    double row[9];
+
+    //!不要把所有的0全记录下来，有多少数据记录多少即可，python端补0
+    unsigned limit = solver->vars <= SIMP_VARS ? solver->vars : SIMP_VARS;
+    for (unsigned idx = 0; idx < limit; idx++) {
+        row[0] = (double) solver->appearance_count[idx];
+        row[1] = (double) solver->conflict_appearance[idx];
+        row[2] = (double) solver->decision_num[idx];
+        row[3] = (double) solver->generated_appearance[idx];
+        row[4] = (double) solver->LBD_min[idx];
+        row[5] = (double) solver->short_clause_appearance[idx];
+        row[6] = (double) solver->decision_level[idx];
+        row[7] = (double) solver->polarity_distribution[idx];
+        row[8] = (double) solver->in_trail[idx];
+
+        size_t written = fwrite (row, sizeof (double), 9, file);
+        if (written != 9) {
+            perror ("fwrite in kissat_write_simple_features_bin");
+            fclose (file);
+            return;
+        }
+    }
+
     fclose (file);
 }
 
 void kissat_write_scores (kissat *solver, const char *filename) {
-    FILE *file = fopen (filename, "w");
+    FILE *file = fopen (filename, "wb");
+    if (!file) {
+        perror ("fopen in kissat_write_scores_bin");
+        return;
+    }
+
     heap *scores = &solver->scores;
+
+    // 缓冲区固定 SIMP_VARS 个 double
+    double buffer[SIMP_VARS];
     unsigned idx = 0;
-    for (idx = 0; idx < solver->vars; idx++) {
-        fprintf (file, "%f\n", scores->score[idx]);
+
+    // 把已有的 score 拷进去（假设 solver->vars <= SIMP_VARS，如果不确定可以取
+    // min）
+    //! 注意这里不补0，python端补0
+    unsigned limit = solver->vars;
+    if (limit > SIMP_VARS)
+        limit = SIMP_VARS;
+
+    for (idx = 0; idx < limit; idx++) {
+        buffer[idx] = (double) scores->score[idx];
     }
-    double padding_value = 0.0;
-    while (idx < 1000) {
-        fprintf (file, "%f\n", padding_value);
-        idx++;
+
+    size_t written = fwrite (buffer, sizeof (double), limit, file);
+    if (written != SIMP_VARS) {
+        perror ("fwrite in kissat_write_scores_bin");
+        fclose (file);
+        return;
     }
+
     fclose (file);
 }
 
@@ -359,7 +427,7 @@ void get_simp_data (kissat *solver) {
     for (l = 0; l < solver->vars; l++) {
         solver->in_trail[l] = 0;
     }
-    for (l = solver->vars; l < 1000; l++) {
+    for (l = solver->vars; l < SIMP_VARS; l++) {
         solver->in_trail[l] = 1;
     }
     unsigned *p = BEGIN_ARRAY (solver->trail);
@@ -430,7 +498,7 @@ void apply_neurobranch_simp (kissat *solver) {
     // 准备数据
     int l;
     // printf ("Preparing features for neurobranch_simp...\n");
-    for (l = 0; l < 1000; l++) {
+    for (l = 0; l < SIMP_VARS; l++) {
         //! 九个特征向量填入共享内存
         solver->data_simp->features[0][l] =
             (double) solver->appearance_count[l];
