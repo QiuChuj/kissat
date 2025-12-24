@@ -335,7 +335,7 @@ void kissat_write_scores (kissat *solver, const char *filename) {
     }
 
     size_t written = fwrite (buffer, sizeof (double), limit, file);
-    if (written != SIMP_VARS) {
+    if (written != limit) {
         perror ("fwrite in kissat_write_scores_bin");
         fclose (file);
         return;
@@ -580,7 +580,7 @@ void kissat_decide (kissat *solver) {
                 kissat_write_cnf (solver, filename);
                 //! 输出当前变量的得分
                 char filename2[256];
-                snprintf (filename2, sizeof (filename2), "%sdecision%d.csv",
+                snprintf (filename2, sizeof (filename2), "%sdecision%d.bin",
                           solver->label_path, solver->decided);
                 kissat_write_simple_features (solver, filename2);
             }
@@ -589,12 +589,12 @@ void kissat_decide (kissat *solver) {
                 //! 提取原始版本neurobranch训练数据
                 //! 输出当前clauses
                 char filename[256];
-                snprintf (filename, sizeof (filename), "%sdecision%d.csv",
+                snprintf (filename, sizeof (filename), "%sdecision%d.bin",
                           solver->data_path, solver->decided);
                 kissat_write_simple_features (solver, filename);
                 //! 输出当前变量的得分
                 char filename2[256];
-                snprintf (filename2, sizeof (filename2), "%sdecision%d.csv",
+                snprintf (filename2, sizeof (filename2), "%sdecision%d.bin",
                           solver->label_path, solver->decided);
                 kissat_write_scores (solver, filename2);
             }

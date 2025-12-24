@@ -9,7 +9,7 @@ RESULTS_CSV="/home/richard/project/kissat/kissat_results.csv"
 ERROR_CSV="/home/richard/project/kissat/error.csv"
 
 # 每个实例的最大运行时间（秒），可根据需要调整
-TIME_LIMIT=600    # 比如 600 秒 = 10 分钟
+TIME_LIMIT=60    # 比如 600 秒 = 10 分钟
 KILL_GRACE=5      # timeout 先发 SIGTERM，KILL_GRACE 秒后再 SIGKILL
 
 # 禁止生成 core 文件，避免 abort 写 core 时卡住
