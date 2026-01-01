@@ -885,6 +885,17 @@ void get_mode (kissat *solver) {
     solver->use_neurobranch = (int) _mode_value_;
     // printf ("7\n");
 
+    // 读取use_neurobranch
+    // char *_mode_pos__ = strstr (content, "\"reinforce_mode\"");
+    // char *_colon_pos__ = strchr (_mode_pos__, ':');
+    // char *_value_start__ = _colon_pos__ + 1;
+    // while (*_value_start__ && isspace (*_value_start__)) {
+    //     _value_start_++;
+    // }
+    // char *_end_ptr__;
+    // long _mode_value__ = strtol (_value_start__, &_end_ptr__, 10);
+    // solver->reinforce_mode = (int) _mode_value__;
+
     free (content);
 }
 
@@ -945,6 +956,26 @@ static int run_application (kissat *solver, int argc, char **argv,
         //! 如果处于训练模式，初始化训练数据和标签的存储路径
         srand (time (NULL));
         solver->rand_value = rand () % 10;
+        // if (solver->reinforce_mode) {
+        //     //! 强化学习offline训练模式
+        //     //! 分别记录state，action，reward这三组数据，便于后面的训练
+        //     snprintf (solver->data_path, sizeof (solver->data_path),
+        //               "/home/richard/project/neurobranch_train_data/"
+        //               "neurobranch_reinforce/state/%s/",
+        //               solver->input_path);
+        //     mode_t mode = 0755;
+        //     mkdir (solver->data_path, mode);
+        //     snprintf (solver->label_path, sizeof (solver->label_path),
+        //               "/home/richard/project/neurobranch_train_data/"
+        //               "neurobranch_reinforce/action/%s/",
+        //               solver->input_path);
+        //     mkdir (solver->label_path, mode);
+        //     snprintf (solver->label_path, sizeof (solver->label_path),
+        //               "/home/richard/project/neurobranch_train_data/"
+        //               "neurobranch_reinforce/reward/%s/",
+        //               solver->input_path);
+        //     mkdir (solver->label_path, mode);
+        // } else
         if (solver->simple_mode) {
             snprintf (solver->data_path, sizeof (solver->data_path),
                       "/home/richard/project/neurobranch_train_data/"

@@ -150,6 +150,7 @@ struct kissat {
     int use_neurobranch;
     int train_mode;
     int simple_mode;
+    int reinforce_mode;
     key_t key;
     int shmid;
     struct shared_data *data;
