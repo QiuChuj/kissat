@@ -11,8 +11,8 @@ ERROR_CSV="/home/richard/project/kissat/neurobranch_simp_error.csv"
 # Python 解释器
 PYTHON_BIN="python3"
 
-# 超时相关配置（和单独 kissat 脚本保持一致风格）
-TIME_LIMIT=60    # 单个实例最大运行时间（秒）
+# 超时相关配置
+TIME_LIMIT=600    # 单个实例最大运行时间（秒）
 KILL_GRACE=5     # timeout 先发 SIGTERM，KILL_GRACE 秒后再 SIGKILL
 
 # 禁止生成 core 文件，避免崩溃时写 core 卡住
@@ -50,6 +50,14 @@ find "$SAT_ROOT" -type f -name '*.cnf' -print0 | while IFS= read -r -d '' cnf_fi
     fi
   fi
 
+  # 若已经在错误 CSV 的第一列中出现过（TIMEOUT/CRASH 等），也跳过
+  if [[ -f "$ERROR_CSV" ]]; then
+    if awk -F',' -v name="$cnf_file" '$1 == name {found=1; exit} END {exit !found}' "$ERROR_CSV"; then
+      echo "跳过已记录错误的文件: $cnf_file"
+      continue
+    fi
+  fi
+
   echo "---------------------------------------------"
   echo "开始求解文件: $cnf_file"
   echo "启动 neurobranch_simp (apply.py)..."
@@ -80,11 +88,6 @@ find "$SAT_ROOT" -type f -name '*.cnf' -print0 | while IFS= read -r -d '' cnf_fi
       kill -9 "$APPLY_PID" 2>/dev/null || true
     fi
   fi
-
-  # 下面对 kissat 的退出码做分类处理，逻辑与单独脚本保持一致：
-  #  124        -> timeout 超时
-  #  >= 128     -> 被信号终止（SIGABRT=6, SIGSEGV=11 等）
-  #  其他非 0 且不是 SAT=10 / UNSAT=20 -> 异常退出
 
   # 1) 超时
   if (( KISSAT_STATUS == 124 )); then

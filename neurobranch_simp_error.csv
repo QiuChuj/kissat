@@ -1,3 +1,8 @@
-/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-13.cnf,TIMEOUT
-/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-11.cnf,TIMEOUT
-/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-3.cnf,TIMEOUT
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-13.cnf,CRASH(signal=11)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-11.cnf,CRASH(signal=11)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-3.cnf,CRASH(signal=9)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-12.cnf,CRASH(signal=11)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-10.cnf,CRASH(signal=11)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-4.cnf,CRASH(signal=9)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-galileo-9.cnf,CRASH(signal=11)
+/home/richard/project/SAT_benchmark/SATLIB/bmc/bmc-ibm-6.cnf,CRASH(signal=11)
