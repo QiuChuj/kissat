@@ -772,33 +772,85 @@ static void print_limits (application *application) {
 
 #endif
 
+static void get_csv_filename_with_worker_id (char *buffer, size_t size,
+                                             const char *base_path) {
+    // 获取环境变量
+    const char *worker_id_str = getenv ("NEUROBRANCH_WORKER_ID");
+    int worker_id = worker_id_str ? atoi (worker_id_str) : 0;
+
+    // 如果没有 worker_id (或者为0，且你希望单进程时也用 _0)，
+    // 或者你希望单进程时不用后缀，可以加判断。
+    // 这里采用统一逻辑：如果是并行环境，worker_id 会是 0, 1, 2...
+    // 假设 base_path 是 ".../neurobranch_simp_results.csv"
+    // 我们想改成 ".../neurobranch_simp_results_0.csv"
+
+    // 简单做法：去掉 .csv 后缀，拼上 _id.csv
+    // 1. 找到最后一个点
+    const char *dot = strrchr (base_path, '.');
+    if (!dot) {
+        // 没有后缀，直接追加
+        snprintf (buffer, size, "%s_%d.csv", base_path, worker_id);
+    } else {
+        // 有后缀，插在后缀前
+        int len_prefix = dot - base_path;
+        // 保护性拷贝
+        if (len_prefix >= size)
+            len_prefix = size - 1;
+
+        char prefix[512];
+        strncpy (prefix, base_path, len_prefix);
+        prefix[len_prefix] = '\0';
+
+        snprintf (buffer, size, "%s_%d.csv", prefix, worker_id);
+    }
+}
+
 void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             double time_ms1, double time_ms2,
                             unsigned long long decisions,
                             unsigned long long conflicts, int mode) {
-    const char *csv_filename = NULL;
+    const char *base_csv_filename = NULL;
+    char final_csv_filename[1024];
+
+    // 1. 确定基础路径
     if (mode == 1) {
-        csv_filename = "/home/richard/project/kissat/neurobranch_results.csv";
+        base_csv_filename =
+            "/home/richard/project/kissat/results/neurobranch_results.csv";
     } else if (mode == 2) {
-        csv_filename =
-            "/home/richard/project/kissat/neurobranch_simp_results.csv";
+        base_csv_filename =
+            "/home/richard/project/kissat/results/neurobranch_simp_results.csv";
     } else {
-        csv_filename = "/home/richard/project/kissat/kissat_results.csv";
+        base_csv_filename =
+            "/home/richard/project/kissat/results/kissat_results.csv";
     }
-    FILE *file = fopen (csv_filename, "a");
+
+    // 2. 如果处于并行模式（即有 NEUROBRANCH_WORKER_ID），则修改文件名
+    if (getenv ("NEUROBRANCH_WORKER_ID")) {
+        get_csv_filename_with_worker_id (
+            final_csv_filename, sizeof (final_csv_filename), base_csv_filename);
+    } else {
+        // 单进程模式，直接用原路径
+        strncpy (final_csv_filename, base_csv_filename,
+                 sizeof (final_csv_filename));
+    }
+
+    // 3. 打开文件
+    FILE *file = fopen (final_csv_filename, "a");
     if (file == NULL) {
-        perror ("Error opening results CSV file");
+        fprintf (stderr, "Error opening results CSV file: %s\n",
+                 final_csv_filename);
+        perror ("Reason");
         return;
     }
+
     char result[10];
     if (res == 20)
-        result[0] = 'U', result[1] = 'N', result[2] = 'S', result[3] = 'A',
-        result[4] = 'T', result[5] = '\0';
+        strcpy (result, "UNSAT");
     else if (res == 10)
-        result[0] = 'S', result[1] = 'A', result[2] = 'T', result[3] = '\0';
+        strcpy (result, "SAT");
     else
-        result[0] = 'U', result[1] = 'N', result[2] = 'K', result[3] = 'N',
-        result[4] = 'O', result[5] = 'W', result[6] = 'N', result[7] = '\0';
+        strcpy (result, "UNKNOWN");
+
     fprintf (file, "%s,%s,%.2f,%.2f,%.2f,%llu,%llu\n", cnf_filename, result,
              time_ms, time_ms1, time_ms2, decisions, conflicts);
     fclose (file);
@@ -1015,9 +1067,24 @@ static int run_application (kissat *solver, int argc, char **argv,
     } else if (solver->simple_mode == 1) {
         //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
         mode = 2;
-        system ("touch /tmp/neurobranch_simp");
 
-        solver->key = ftok ("/tmp/neurobranch_simp", 84);
+        //! 这里要进行并行运算，注意共享内存文件的命名
+        // 获取环境变量
+        char *worker_id_str = getenv ("NEUROBRANCH_WORKER_ID");
+        int worker_id = worker_id_str ? atoi (worker_id_str) : 0;
+
+        // 构造唯一路径
+        char shm_path[256];
+        sprintf (shm_path, "/tmp/neurobranch_simp_%d", worker_id);
+
+        // 创建文件以供 ftok 使用
+        char cmd[256];
+        sprintf (cmd, "touch %s", shm_path);
+        system (cmd);
+
+        // system ("touch /tmp/neurobranch_simp");
+
+        solver->key = ftok (shm_path, 84);
         if (solver->key == (key_t) -1) {
             perror ("ftok(/tmp/neurobranch_simp, 84) failed");
             exit (1);
