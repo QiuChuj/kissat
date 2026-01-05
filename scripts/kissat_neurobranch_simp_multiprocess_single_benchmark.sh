@@ -39,7 +39,7 @@ KILL_GRACE=5      # timeout 发送 SIGTERM 后等待几秒再发 SIGKILL
 # 3. 路径配置
 KISSAT_BIN="/home/richard/project/kissat/build/kissat"
 APPLY_SCRIPT="/home/richard/project/neurobranch_simp/python/apply.py"
-SAT_ROOT="/home/richard/project/SAT_benchmark/SATLIB"
+SAT_ROOT=""    # 将在下面从命令行参数解析
 
 # 4. 主结果文件
 MAIN_RESULTS_CSV="/home/richard/project/kissat/results/neurobranch_simp_results.csv"
@@ -49,7 +49,7 @@ MAIN_ERROR_CSV="/home/richard/project/kissat/results/neurobranch_simp_error.csv"
 TMP_DIR="/tmp/kissat_parallel_jobs"
 mkdir -p "$TMP_DIR"
 
-# ! 新增：日志根目录（每个 worker 下按时间戳分子目录）
+# 日志根目录（每个 worker 下按时间戳分子目录）
 LOG_DIR="/home/richard/project/kissat/logs"
 mkdir -p "$LOG_DIR"
 
@@ -115,6 +115,19 @@ if [[ ! -x "$KISSAT_BIN" || ! -f "$APPLY_SCRIPT" ]]; then
     exit 1
 fi
 
+# 解析命令行参数：第一个参数是 CNF 根目录
+if [[ $# -ne 1 ]]; then
+    echo "用法: $0 <CNF根目录，例如 /home/richard/project/SAT_benchmark/SATLIB/aim>" >&2
+    exit 1
+fi
+
+SAT_ROOT="$1"
+if [[ ! -d "$SAT_ROOT" ]]; then
+    echo "错误: '$SAT_ROOT' 不是有效目录" >&2
+    exit 1
+fi
+
+echo "CNF 根目录: $SAT_ROOT"
 echo "=== 开始并行求解 (Workers: $NUM_WORKERS) ==="
 
 # 启动前设置 neurobranch_simp 模式
@@ -145,7 +158,7 @@ for csv in "$MAIN_RESULTS_CSV" "$MAIN_ERROR_CSV"; do
     fi
 done
 
-# 查找所有 CNF
+# 查找所有 CNF（在传入目录下递归）
 find "$SAT_ROOT" -type f -name '*.cnf' > "$ALL_TASKS_FILE"
 > "$TO_DO_FILE"
 
@@ -248,8 +261,8 @@ run_worker() {
     echo ">>> Worker $worker_id 启动，任务数: $total"
 
     while read -r cnf_file; do
-        # ! 新逻辑：为当前任务生成基于时间戳的日志目录
-        # ! 例如: /home/richard/project/kissat/logs/worker_0/2026_01_05_18_35_00/
+        # 为当前任务生成基于时间戳的日志目录
+        # 例如: /home/richard/project/kissat/logs/worker_0/2026_01_05_18_35_00/
         local timestamp
         timestamp=$(date +"%Y_%m_%d_%H_%M_%S")
         local cnf_log_dir="${LOG_DIR}/worker_${worker_id}/${timestamp}"

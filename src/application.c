@@ -968,7 +968,9 @@ static int run_application (kissat *solver, int argc, char **argv,
     application application;
     //! 初始化worker_id
     init_app (&application, solver);
+    printf ("Worker_id Initial: %d\n", application.worker_id);
     bool ok = parse_options (&application, argc, argv);
+    printf ("Worker_id Parsed: %d\n", application.worker_id);
     if (application.time > 0)
         *cancel_alarm_ptr = true;
     if (!ok)
@@ -1011,6 +1013,8 @@ static int run_application (kissat *solver, int argc, char **argv,
     // printf ("初始化5：\n");
     get_filename (application.input_path, solver->input_path);
     int mode = 0;
+    solver->worker_id = application.worker_id;
+    printf ("Worker_id Solver: %d\n", solver->worker_id);
     if (!solver->use_neurobranch) {
         //! 如果不使用neurobranch就不建共享内存
     } else if (solver->train_mode) {
@@ -1081,7 +1085,6 @@ static int run_application (kissat *solver, int argc, char **argv,
 
         // 构造唯一路径
         char shm_path[256];
-        solver->worker_id = application.worker_id;
         sprintf (shm_path, "/tmp/neurobranch_simp_%d", solver->worker_id);
 
         // 创建文件以供 ftok 使用

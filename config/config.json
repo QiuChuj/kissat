@@ -1,6 +1,6 @@
 {
-    "use_neurobranch": 0,
+    "use_neurobranch": 1,
     "train_mode": 0,
-    "simple_mode": 0,
+    "simple_mode": 1,
     "reinforce_mode": 0
 }

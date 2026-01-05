@@ -227,7 +227,6 @@ run_worker() {
     local task_file=$2
     
     local worker_error="$TMP_DIR/error_${worker_id}.csv"
-    local worker_result="$TMP_DIR/result_${worker_id}.csv"
     local progress_file="$TMP_DIR/progress_${worker_id}"
 
     # 初始化进度为 0
@@ -246,7 +245,7 @@ run_worker() {
     while read -r cnf_file; do
         # 1. 运行 Kissat (带 timeout 保护)
         timeout -k "${KILL_GRACE}s" "${TIME_LIMIT}s" \
-            "$KISSAT_BIN" "$cnf_file" > /dev/null
+            "$KISSAT_BIN" "$cnf_file" "$worker_id"> /dev/null
         local status=$?
         
         # 2. 分类处理退出码 
@@ -262,8 +261,6 @@ run_worker() {
         elif (( status != 0 && status != 10 && status != 20 )); then
             echo "$cnf_file,ERROR(exit=$status)" >> "$worker_error"
         # D. 成功 (10=SAT, 20=UNSAT)
-        else
-            echo "$cnf_file,SOLVED,$status" >> "$worker_result"
         fi
 
         # 3. 更新本 worker 的进度
