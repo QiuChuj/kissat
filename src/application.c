@@ -790,12 +790,6 @@ static void print_limits (application *application) {
 static void get_csv_filename_with_worker_id (char *buffer, size_t size,
                                              const char *base_path,
                                              int worker_id) {
-    // 如果没有 worker_id (或者为0，且你希望单进程时也用 _0)，
-    // 或者你希望单进程时不用后缀，可以加判断。
-    // 这里采用统一逻辑：如果是并行环境，worker_id 会是 0, 1, 2...
-    // 假设 base_path 是 ".../neurobranch_simp_results.csv"
-    // 我们想改成 ".../neurobranch_simp_results_0.csv"
-
     // 简单做法：去掉 .csv 后缀，拼上 _id.csv
     // 1. 找到最后一个点
     const char *dot = strrchr (base_path, '.');

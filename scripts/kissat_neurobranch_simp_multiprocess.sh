@@ -56,6 +56,21 @@ ulimit -c 0
 cleanup() {
     echo
     echo "捕获到中断信号，正在清理所有 worker 进程和临时文件..."
+    echo "合并错误日志..."
+
+    # 合并错误日志
+    if ls "$TMP_DIR"/error_*.csv 1> /dev/null 2>&1; then
+        cat "$TMP_DIR"/error_*.csv >> "$MAIN_ERROR_CSV"
+    fi
+
+    echo "合并结果到主 CSV..."
+
+    RESULTS_DIR="/home/richard/project/kissat/results"
+    # 将所有带 worker 后缀的文件合并到主文件（如果有的话）
+    cat "$RESULTS_DIR"/neurobranch_simp_results_*.csv >> "$MAIN_RESULTS_CSV" 2>/dev/null
+
+    # 合并完后删除这些分片文件
+    rm -f "$RESULTS_DIR"/neurobranch_simp_results_*.csv
 
     # 杀掉所有 worker 子进程（如果已经启动的话）
     # 注意使用 ${pids[@]:-} 防止 set -u 下 pids 未定义时报错
