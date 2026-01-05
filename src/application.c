@@ -31,6 +31,7 @@ typedef struct application application;
 
 struct application {
     kissat *solver;
+    int worker_id;
     const char *input_path;
     const char *output_path;
 #ifndef NPROOFS
@@ -57,6 +58,7 @@ static void init_app (application *application, kissat *solver) {
     application->conflicts = -1;
     application->decisions = -1;
     application->strict = NORMAL_PARSING;
+    application->worker_id = -1;
 }
 
 static void print_common_dimacs_and_proof_usage (void) {
@@ -562,6 +564,19 @@ static bool parse_options (application *application, int argc, char **argv) {
             ERROR ("three file arguments '%s', '%s' and '%s' (try '-h')",
                    application->input_path, application->proof_path, arg);
 #endif
+        //! 这里添加一个自定义参数worker_id，用于多处理器worker的区分
+        /* 新增：如果已经有 input_path 且还没有设置 worker_id，
+                   则把当前这个非选项参数当成 worker_id 来解析 */
+        else if (application->input_path && application->worker_id == -1) {
+            char *end;
+            long wid = strtol (arg, &end, 10);
+            if (*end || wid < 0 || wid > INT_MAX)
+                ERROR ("invalid worker id '%s' (must be non-negative integer)",
+                       arg);
+            application->worker_id = (int) wid;
+        }
+        /* 原来的逻辑：如果已经有 input_path，则当成 proof_path 处理
+           （有 NPROOFS 时则报“两文件参数”错误） */
         else if (application->input_path) {
 #ifndef NPROOFS
             const char *input_path = application->input_path;
@@ -958,6 +973,7 @@ static int run_application (kissat *solver, int argc, char **argv,
         if (parsed_one_option_and_return_zero_exit_code (argv[1]))
             return 0;
     application application;
+    //! 初始化worker_id
     init_app (&application, solver);
     bool ok = parse_options (&application, argc, argv);
     if (application.time > 0)
@@ -1068,23 +1084,23 @@ static int run_application (kissat *solver, int argc, char **argv,
         //! 如果使用简化版本neurobranch，并且是apply模式，构建第二种共享内存
         mode = 2;
 
-        //! 这里要进行并行运算，注意共享内存文件的命名
-        // 获取环境变量
-        char *worker_id_str = getenv ("NEUROBRANCH_WORKER_ID");
-        int worker_id = worker_id_str ? atoi (worker_id_str) : 0;
+        // //! 这里要进行并行运算，注意共享内存文件的命名
 
         // 构造唯一路径
         char shm_path[256];
-        sprintf (shm_path, "/tmp/neurobranch_simp_%d", worker_id);
+        solver->worker_id = application.worker_id;
+        sprintf (shm_path, "/tmp/neurobranch_simp_%d", solver->worker_id);
 
         // 创建文件以供 ftok 使用
         char cmd[256];
         sprintf (cmd, "touch %s", shm_path);
         system (cmd);
+        printf ("%s\n", cmd);
 
         // system ("touch /tmp/neurobranch_simp");
 
         solver->key = ftok (shm_path, 84);
+        // solver->key = ftok ("/tmp/neurobranch_simp", 84);
         if (solver->key == (key_t) -1) {
             perror ("ftok(/tmp/neurobranch_simp, 84) failed");
             exit (1);

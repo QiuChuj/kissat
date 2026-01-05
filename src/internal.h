@@ -135,6 +135,8 @@ struct kissat {
     unsigned active;
     unsigned randec;
     int decided;
+    //! 处理器worker序号
+    int worker_id;
     //! 设置时间变量用于计时
     struct timespec start, end;
     long decision_time_ns;
