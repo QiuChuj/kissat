@@ -788,11 +788,8 @@ static void print_limits (application *application) {
 #endif
 
 static void get_csv_filename_with_worker_id (char *buffer, size_t size,
-                                             const char *base_path) {
-    // 获取环境变量
-    const char *worker_id_str = getenv ("NEUROBRANCH_WORKER_ID");
-    int worker_id = worker_id_str ? atoi (worker_id_str) : 0;
-
+                                             const char *base_path,
+                                             int worker_id) {
     // 如果没有 worker_id (或者为0，且你希望单进程时也用 _0)，
     // 或者你希望单进程时不用后缀，可以加判断。
     // 这里采用统一逻辑：如果是并行环境，worker_id 会是 0, 1, 2...
@@ -823,7 +820,8 @@ static void get_csv_filename_with_worker_id (char *buffer, size_t size,
 void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
                             double time_ms1, double time_ms2,
                             unsigned long long decisions,
-                            unsigned long long conflicts, int mode) {
+                            unsigned long long conflicts, int mode,
+                            int worker_id) {
     const char *base_csv_filename = NULL;
     char final_csv_filename[1024];
 
@@ -840,9 +838,10 @@ void log_solver_statistics (const char *cnf_filename, int res, double time_ms,
     }
 
     // 2. 如果处于并行模式（即有 NEUROBRANCH_WORKER_ID），则修改文件名
-    if (getenv ("NEUROBRANCH_WORKER_ID")) {
-        get_csv_filename_with_worker_id (
-            final_csv_filename, sizeof (final_csv_filename), base_csv_filename);
+    if (worker_id != -1) {
+        get_csv_filename_with_worker_id (final_csv_filename,
+                                         sizeof (final_csv_filename),
+                                         base_csv_filename, worker_id);
     } else {
         // 单进程模式，直接用原路径
         strncpy (final_csv_filename, base_csv_filename,
@@ -1174,7 +1173,8 @@ static int run_application (kissat *solver, int argc, char **argv,
 
     log_solver_statistics (application.input_path, res, time_ms, time_ms1,
                            time_ms2, solver->statistics.decisions,
-                           solver->statistics.conflicts, mode);
+                           solver->statistics.conflicts, mode,
+                           solver->worker_id);
 
 #ifndef NPROOFS
     close_proof (&application);

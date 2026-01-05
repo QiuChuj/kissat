@@ -3,6 +3,7 @@ set -u
 
 # =============== kissat 配置文件 ===============
 CONFIG_JSON="/home/richard/project/kissat/config/config.json"
+PYTHON_BIN="python3"
 
 update_kissat_config() {
     local use_neurobranch="$1"
@@ -10,7 +11,7 @@ update_kissat_config() {
     local simple_mode="$3"
     local reinforce_mode="$4"
 
-    "$PYTHON_BIN" - "$CONFIG_JSON" <<EOF
+    "$PYTHON_BIN0" - "$CONFIG_JSON" <<EOF
 import json, sys
 path = sys.argv[1]
 with open(path, "r") as f:
@@ -25,7 +26,6 @@ with open(path, "w") as f:
     json.dump(cfg, f, indent=4)
 EOF
 }
-
 # ================= 配置区 =================
 
 # 1. 并行数量 (建议 = CPU核心数 - 1)
@@ -37,13 +37,11 @@ KILL_GRACE=5      # timeout 发送 SIGTERM 后等待几秒再发 SIGKILL
 
 # 3. 路径配置
 KISSAT_BIN="/home/richard/project/kissat/build/kissat"
-APPLY_SCRIPT="/home/richard/project/neurobranch_simp/python/apply.py"
 SAT_ROOT="/home/richard/project/SAT_benchmark/SATLIB"
-PYTHON_BIN="python3"
 
-# 4. 主结果文件
-MAIN_RESULTS_CSV="/home/richard/project/kissat/results/neurobranch_simp_results.csv"
-MAIN_ERROR_CSV="/home/richard/project/kissat/results/neurobranch_simp_error.csv"
+# 4. 主结果文件（纯 kissat 的结果 & 错误）
+MAIN_RESULTS_CSV="/home/richard/project/kissat/results/kissat_results.csv"
+MAIN_ERROR_CSV="/home/richard/project/kissat/results/kissat_error.csv"
 
 # 5. 临时目录
 TMP_DIR="/tmp/kissat_parallel_jobs"
@@ -52,7 +50,10 @@ mkdir -p "$TMP_DIR"
 # 禁止生成 core 文件
 ulimit -c 0
 
-# ========= 新增：Ctrl+C 清理函数和 trap =========
+# 提前定义 pids 数组，方便 cleanup 使用
+pids=()
+
+# ========= Ctrl+C 清理函数和 trap =========
 cleanup() {
     echo
     echo "捕获到中断信号，正在清理所有 worker 进程和临时文件..."
@@ -65,8 +66,7 @@ cleanup() {
         fi
     done
 
-    # 保险起见，再杀一次所有 apply.py 和 kissat 进程
-    pkill -f "$APPLY_SCRIPT" 2>/dev/null || true
+    # 保险起见，再杀一次所有 kissat 进程
     pkill -f "$KISSAT_BIN"   2>/dev/null || true
 
     # 删除临时目录
@@ -81,17 +81,25 @@ trap cleanup INT TERM
 # ==========================================
 
 # 检查必要文件
-if [[ ! -x "$KISSAT_BIN" || ! -f "$APPLY_SCRIPT" ]]; then
-    echo "错误：找不到 kissat 或 apply.py"
+if [[ ! -x "$KISSAT_BIN" ]]; then
+    echo "错误：找不到 kissat: $KISSAT_BIN"
     exit 1
 fi
+
+# 纯 kissat 模式设置：
+# {
+#   "use_neurobranch": 0,
+#   "train_mode": 0,
+#   "simple_mode": 0,
+#   "reinforce_mode": 0
+# }
+update_kissat_config 0 0 0 0
 
 echo "=== 开始并行求解 (Workers: $NUM_WORKERS) ==="
 
 # ---------------------------------------------------------
 # 第一步：任务扫描与去重 (加载主 CSV 到内存)
 # ---------------------------------------------------------
-update_kissat_config 1 0 1 0
 echo "正在扫描并去重..."
 ALL_TASKS_FILE="$TMP_DIR/all_tasks.txt"
 TO_DO_FILE="$TMP_DIR/todo_tasks.txt"
@@ -132,7 +140,7 @@ if [[ $count -eq 0 ]]; then echo "全部完成，退出。"; exit 0; fi
 split -n l/"$NUM_WORKERS" -d "$TO_DO_FILE" "$TMP_DIR/task_part_"
 
 # ---------------------------------------------------------
-# 第三步：定义 Worker 函数 (包含完整的异常处理)
+# 第三步：定义 Worker 函数 (只用 kissat)
 # ---------------------------------------------------------
 run_worker() {
     local worker_id=$1
@@ -140,40 +148,17 @@ run_worker() {
     
     # 每个 Worker 独享的日志文件 (避免多进程写同一个文件冲突)
     local worker_error="$TMP_DIR/error_${worker_id}.csv"
-    # 如果 C 代码没有写结果到文件，我们可以利用这个文件记录成功的
     local worker_result="$TMP_DIR/result_${worker_id}.csv"
     
     echo ">>> Worker $worker_id 启动，处理: $task_file"
     
-    # 以前通过环境变量传 worker_id 给 C，现在不再需要：
-    # export NEUROBRANCH_WORKER_ID="$worker_id"
-    
     while read -r cnf_file; do
-        # 1. 后台启动 Python (传入 --worker-id)
-        # 将输出重定向到 /dev/null 防止刷屏
-        "$PYTHON_BIN" "$APPLY_SCRIPT" --worker-id "$worker_id" > /dev/null 2>&1 &
-        local py_pid=$!
-        
-        # 等待初始化
-        sleep 2
-        
-        # 2. 运行 Kissat (带 timeout 保护)
-        # 现在 worker_id 作为命令行第二个参数传给 kissat
+        # 1. 运行 Kissat (带 timeout 保护)
         timeout -k "${KILL_GRACE}s" "${TIME_LIMIT}s" \
-            "$KISSAT_BIN" "$cnf_file" "$worker_id" > /dev/null
+            "$KISSAT_BIN" "$cnf_file" > /dev/null
         local status=$?
         
-        # 3. 立即清理 Python 进程 (无论 kissat 成功失败)
-        if kill -0 "$py_pid" 2>/dev/null; then
-            kill "$py_pid" 2>/dev/null || true
-            # 极短等待，防止僵尸进程
-            sleep 0.2
-            if kill -0 "$py_pid" 2>/dev/null; then
-                kill -9 "$py_pid" 2>/dev/null || true
-            fi
-        fi
-        
-        # 4. 分类处理退出码 
+        # 2. 分类处理退出码 
         
         # A. 超时 (124)
         if (( status == 124 )); then
@@ -200,8 +185,8 @@ run_worker() {
         # D. 成功 (10=SAT, 20=UNSAT)
         echo "[W$worker_id] 完成: $(basename "$cnf_file") ($status)"
         
-        # 如果 C 端没有写入主 CSV，可以在这里加一行
-        # echo "$cnf_file,SOLVED,$status" >> "$worker_result"
+        # 在这里记录成功结果
+        echo "$cnf_file,SOLVED,$status" >> "$worker_result"
         
     done < "$task_file"
     
@@ -211,7 +196,6 @@ run_worker() {
 # ---------------------------------------------------------
 # 第四步：启动并行 Worker
 # ---------------------------------------------------------
-pids=()
 for (( i=0; i<NUM_WORKERS; i++ )); do
     part_file="$TMP_DIR/task_part_$(printf "%02d" $i)"
     
@@ -238,14 +222,11 @@ if ls "$TMP_DIR"/error_*.csv 1> /dev/null 2>&1; then
     cat "$TMP_DIR"/error_*.csv >> "$MAIN_ERROR_CSV"
 fi
 
+# 合并结果
 echo "合并结果到主 CSV..."
-
-RESULTS_DIR="/home/richard/project/kissat/results"
-# 将所有带 worker 后缀的文件合并到主文件（如果有的话）
-cat "$RESULTS_DIR"/neurobranch_simp_results_*.csv >> "$MAIN_RESULTS_CSV" 2>/dev/null
-
-# 合并完后删除这些分片文件
-rm -f "$RESULTS_DIR"/neurobranch_simp_results_*.csv
+if ls "$TMP_DIR"/result_*.csv 1> /dev/null 2>&1; then
+    cat "$TMP_DIR"/result_*.csv >> "$MAIN_RESULTS_CSV"
+fi
 
 # 清理临时目录
 rm -rf "$TMP_DIR"
