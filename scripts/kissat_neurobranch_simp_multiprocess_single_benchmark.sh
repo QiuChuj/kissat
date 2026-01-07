@@ -33,7 +33,7 @@ EOF
 NUM_WORKERS=4
 
 # 2. 超时设置 (必须设置，防止卡死)
-TIME_LIMIT=600    # 单个实例最大运行时间（秒）
+TIME_LIMIT=1800    # 单个实例最大运行时间（秒）
 KILL_GRACE=5      # timeout 发送 SIGTERM 后等待几秒再发 SIGKILL
 
 # 3. 路径配置
